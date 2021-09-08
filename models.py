@@ -1,11 +1,12 @@
+from abc import abstractmethod, ABC
+
 import tensorflow as tf
 from tensorflow.keras.models import Model
 from tensorflow.keras import metrics as tfkm
 
 from synthesizers import *
 
-
-class Autoencoder(Model):
+class Autoencoder(Model, ABC):
     def __init__(self,
                preprocessor=None,
                add_reverb=False,
@@ -35,10 +36,12 @@ class Autoencoder(Model):
             self.reverb = Reverb(reverb_length=n_samples)
         self.trackers = TrackerGroup(*tracker_names)
         self.metric_fns = metric_fns
-            
+
+    @abstractmethod
     def encode(self, features):
         raise NotImplementedError
-    
+
+    @abstractmethod
     def decode(self, features):
         raise NotImplementedError
     
