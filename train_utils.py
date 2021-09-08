@@ -1,4 +1,5 @@
 import os
+from typing import Dict
 
 from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.optimizers.schedules import ExponentialDecay 
@@ -92,7 +93,7 @@ def create_callbacks(config, monitor):
 
 # -------------------------------------- Datasets -------------------------------------------------      
 
-def make_supervised_dataset_from_config(config):
+def make_supervised_dataset_from_config(config: Dict):
     try: # deal with no mfcc_nfft control versions 
         mfcc_nfft = config['data']['mfcc_nfft']
     except:
@@ -103,11 +104,14 @@ def make_supervised_dataset_from_config(config):
                                 batch_size=config['training']['batch_size'],
                                 sample_rate=config['data']['sample_rate'],
                                 normalize=config['data']['normalize'],
-                                conf_threshold=config['data']['confidence_threshold'])  
+                                conf_threshold=config['data']['confidence_threshold'],
+                                frame_rate=config['data'].get('frame_rate', 250),
+                                midi_feature_names=config['data'].get('midi_features', None))
+
 
 def make_unsupervised_dataset_from_config(config):
     return make_unsupervised_dataset(config['data']['path'],
                                 batch_size=config['training']['batch_size'],
                                 sample_rate=config['data']['sample_rate'],
                                 normalize=config['data']['normalize'],
-                                frame_rate=config['data']['preprocessing_time']) 
+                                frame_rate=config['data']['preprocessing_time'])

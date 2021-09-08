@@ -1,4 +1,7 @@
 import glob
+import os.path
+from typing import Dict, Optional, List
+
 import numpy as np
 
 from tensorflow.data import Dataset
@@ -6,8 +9,9 @@ import tensorflow_datasets as tfds
 from sklearn.model_selection import train_test_split
 
 from feature_extraction import extract_features_from_frames, feature_extractor
-from utilities import frame_generator, load_track
+from utilities import frame_generator, load_track, get_raw_midi_features_from_file, generate_midi_features_examples, concat_dct
 
+MIDI_FILE_EXTENSION = 'MID'
 
 def _make_dataset(features, batch_size=32, seed=None):
     features = Dataset.from_tensor_slices(features)
@@ -18,29 +22,108 @@ def _make_dataset(features, batch_size=32, seed=None):
 
 # -------------------------------------------- Supervised Dataset -------------------------------------------------
 
-def make_supervised_dataset(path, mfcc=False, batch_size=32, sample_rate=16000,
-                            normalize=False, conf_threshold=0.0, mfcc_nfft=1024):
-    """Loads all the mp3 files in the path, creates frames and extracts features."""
+def guess_midi_file_name_by_audio_file_name(audio_file_name: str) -> str:
+    return os.path.splitext(audio_file_name)[0] + '.' + MIDI_FILE_EXTENSION
 
-    frames = []
-    for file in glob.glob(path+'/*.mp3'):    
-        track = load_track(file, sample_rate=sample_rate, normalize=normalize)
-        frames.append(frame_generator(track, 4*sample_rate)) # create 4 seconds long frames     
-    frames = np.concatenate(frames, axis=0)   
-    trainX, valX = train_test_split(frames)
+
+def _filter_midi_features_data(raw_midi_features_data: Dict[str, np.array], feature_names_to_leave: List[str]) -> Dict[str, np.array]:
+    """
+    Get a dict of feature names and return its version with only requested features left.
+    """
+    return {feature_name: raw_midi_features_data[feature_name] for feature_name in feature_names_to_leave}
+
+
+
+def make_supervised_dataset(path, mfcc=False, batch_size=32, sample_rate=16000,
+                            normalize=False, conf_threshold=0.0, mfcc_nfft=1024,
+                            frame_rate: int = 250,
+                            midi_feature_names: Optional[List[str]] = None
+                            ):
+    """Loads all the mp3 and (optionally) midi files in the path, creates frames and extracts features."""
+
+    ordered_audio_frames = []
+    ordered_midi_features_frames = []
+
+    length_of_example_seconds = 4.0
+
+    # this one is essentially just syntactic sugar
+    need_midi = True if midi_feature_names is not None else False
+
+    KEY_AUDIO = 'audio'
+    KEY_MIDI = 'midi'
+
+    for audio_file_name in glob.glob(path+'/*.mp3'):
+
+        audio_data = load_track(audio_file_name, sample_rate=sample_rate, normalize=normalize)
+        generated_audio_frames = frame_generator(audio_data, int(length_of_example_seconds * sample_rate))
+        ordered_audio_frames.extend(generated_audio_frames)  # create 4 seconds long frames\
+
+        if need_midi:
+            midi_file_name = guess_midi_file_name_by_audio_file_name(audio_file_name)
+            raw_midi_features_data = get_raw_midi_features_from_file(midi_file_name, frame_rate, audio_data.shape[0] / sample_rate)
+            raw_midi_features_data = _filter_midi_features_data(raw_midi_features_data, midi_feature_names)
+
+            generated_midi_feature_examples = generate_midi_features_examples(raw_midi_features_data, int(length_of_example_seconds * frame_rate))
+            ordered_midi_features_frames.extend(generated_midi_feature_examples)
+
+    combined_frames = []
+    if need_midi:
+        assert len(ordered_audio_frames) == len(ordered_midi_features_frames)
+        for (audio_frame, midi_features_frame) in zip(ordered_audio_frames, ordered_midi_features_frames):
+            combined_frames.append({
+                KEY_AUDIO: audio_frame,
+                KEY_MIDI: midi_features_frame
+            })
+    else:
+        for audio_frame in ordered_audio_frames:
+            combined_frames.append({
+                KEY_AUDIO: audio_frame,
+            })
+
+    trainX, valX = train_test_split(combined_frames)
+
+    train_shuffled_audio_frames = [x[KEY_AUDIO] for x in trainX]
+    val_shuffled_audio_frames = [x[KEY_AUDIO] for x in valX]
+
+    # audio_and_midi_features_frames = np.concatenate(audio_and_midi_features_frames, axis=0)
+
     print('Train set size: {}\nVal set size: {}'.format(len(trainX),len(valX)))
-    train_features = extract_features_from_frames(trainX, mfcc=mfcc, sample_rate=sample_rate,
-                                                conf_threshold=conf_threshold, mfcc_nfft=mfcc_nfft)
-    val_features = extract_features_from_frames(valX, mfcc=mfcc, sample_rate=sample_rate,
-                                                conf_threshold=conf_threshold, mfcc_nfft=mfcc_nfft)
-    return _make_dataset(train_features, batch_size), _make_dataset(val_features, batch_size), None
+    train_audio_and_audio_features = extract_features_from_frames(train_shuffled_audio_frames, mfcc=mfcc, sample_rate=sample_rate,
+                                                                  conf_threshold=conf_threshold, mfcc_nfft=mfcc_nfft)
+    val_audio_and_audio_features = extract_features_from_frames(val_shuffled_audio_frames, mfcc=mfcc, sample_rate=sample_rate,
+                                                                conf_threshold=conf_threshold, mfcc_nfft=mfcc_nfft)
+
+    if need_midi:
+        train_shuffled_midi_frames = [x[KEY_MIDI] for x in trainX]
+        val_shuffled_midi_frames = [x[KEY_MIDI] for x in valX]
+
+        train_shuffled_midi_frames = concat_dct(train_shuffled_midi_frames)
+        val_shuffled_midi_frames = concat_dct(val_shuffled_midi_frames)
+
+        combined_train_features = {
+            **train_audio_and_audio_features,
+            **train_shuffled_midi_frames
+        }
+
+        combined_val_features = {
+            **val_audio_and_audio_features,
+            **val_shuffled_midi_frames
+        }
+    else:
+        combined_train_features = train_audio_and_audio_features
+        combined_val_features = val_audio_and_audio_features
+
+    train_dataset = _make_dataset(combined_train_features, batch_size)
+    val_dataset = _make_dataset(combined_val_features, batch_size)
+
+    return train_dataset, val_dataset, None
 
 # -------------------------------------------- Unsupervised Datasets ----------------------------------------------
 
 def make_unsupervised_dataset(path, batch_size=32, sample_rate=16000, normalize=False, frame_rate=250):
     frames = []
     for file in glob.glob(path+'/*.mp3'):    
-        track = load_track(file, sample_rate=sample_rate, normalize=normalize)
+        track = load_audio_track(file, sample_rate=sample_rate, normalize=normalize)
         frames.append(frame_generator(track, 4*sample_rate)) # create 4 seconds long frames     
     frames = np.concatenate(frames, axis=0)   
     trainX, valX = train_test_split(frames)
