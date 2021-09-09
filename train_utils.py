@@ -4,7 +4,7 @@ from typing import Dict
 from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.optimizers.schedules import ExponentialDecay 
 
-from preprocessing import F0LoudnessPreprocessor, LoudnessPreprocessor
+from preprocessing import F0LoudnessAndMidiFeaturesPreprocessor, LoudnessPreprocessor
 from encoders import SupervisedEncoder, UnsupervisedEncoder
 from models import SupervisedAutoencoder, UnsupervisedAutoencoder
 from decoders import DecoderWithoutLatent, DecoderWithLatent
@@ -45,7 +45,7 @@ def make_unsupervised_model(config):
 
 def make_supervised_model(config):
     """Creates the necessary components of a supervised ddsp using the config."""
-    preprocessor = F0LoudnessPreprocessor(timesteps=config['data']['preprocessing_time'])
+    preprocessor = F0LoudnessAndMidiFeaturesPreprocessor(timesteps=config['data']['preprocessing_time'])
     if config['model']['encoder']:
         encoder = SupervisedEncoder()
         decoder = DecoderWithLatent(timesteps=config['model']['decoder_time'])

@@ -1,4 +1,4 @@
-from typing import List, Dict, Callable
+from typing import List, Dict, Callable, Optional
 
 import numpy as np
 import pretty_midi
@@ -11,7 +11,11 @@ class MidiLoader:
     FEATURE_CC_PREFIX = 'cc_'
     FEATURE_DISTANCE_FROM_ONSET = 'distance_from_onset'
 
-    def load(self, midi_file_name: str, frame_rate: int, audio_length_seconds: float):
+    def load(self,
+             midi_file_name: str,
+             frame_rate: int,
+             audio_length_seconds: float,
+             only_these_features: List[str] = None):
         midi_data = pretty_midi.PrettyMIDI(midi_file_name)
 
         instruments: List[Instrument] = midi_data.instruments
@@ -20,12 +24,17 @@ class MidiLoader:
             raise Exception("only midi files with exactly one instrument are supported " +
                             f"{midi_file_name} has {len(instruments)}")
 
-        return self._load_instrument(instruments[0], audio_length_seconds, frame_rate)
+        return self._load_instrument(
+            instrument=instruments[0],
+            audio_length_seconds=audio_length_seconds,
+            frame_rate=frame_rate,
+            only_these_features=only_these_features)
 
     def _load_instrument(self,
                          instrument: Instrument,
                          audio_length_seconds: float,
-                         frame_rate: int) -> Dict[str, np.ndarray]:
+                         frame_rate: int,
+                         only_these_features: Optional[List[str]] = None) -> Dict[str, np.ndarray]:
 
         time_of_last_midi_event = instrument.get_end_time()
 
@@ -65,6 +74,12 @@ class MidiLoader:
             frame_rate,
             audio_length_seconds
         )
+
+        if only_these_features is not None:
+            filtered_res = {}
+            for feature_name in only_these_features:
+                filtered_res[feature_name] = res[feature_name]
+            res = filtered_res
 
         return res
 
