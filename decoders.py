@@ -1,3 +1,5 @@
+from typing import Dict, Any, Optional, List
+
 import tensorflow as tf
 from tensorflow.keras import Sequential
 from tensorflow.keras import layers as tfkl
@@ -20,17 +22,24 @@ class MLP(Sequential):
         super().__init__(layers, **kwargs) 
 
 class DecoderWithoutLatent(tfkl.Layer):
-    """ Decoder class for loudness and F0. Used in the Supervised setting."""
+    """ Decoder class for loudness, F0, and possibly additional midi features. Used in the Supervised setting."""
     
     def __init__(self, rnn_channels=512, mlp_channels=512,
                  harmonic_out_channel=100, noise_out_channel=65,
                  layers_per_stack=3, timesteps=1000,
+                 midi_features: Optional[List[str]] = None,
                  **kwargs):
         
         super().__init__(**kwargs)
 
         self.MLP_f0 = MLP(mlp_channels, layers_per_stack)
         self.MLP_l = MLP(mlp_channels, layers_per_stack)
+
+        self.MLPs_for_midi_features: Dict[str, MLP] = {}
+
+        if midi_features is not None:
+            for midi_feature in midi_features:
+                self.MLPs_for_midi_features[midi_feature] = MLP(mlp_channels, layers_per_stack)
 
         self.rnn = tfkl.GRU(rnn_channels, return_sequences=True)
         self.MLP_rnn = MLP(mlp_channels, layers_per_stack)
@@ -41,12 +50,15 @@ class DecoderWithoutLatent(tfkl.Layer):
 
         self.timesteps = timesteps
 
-    def call(self, inputs):
+    def call(self, inputs: Dict[str, Any], *args, **kwargs):
         
         x_f0 = self.MLP_f0(inputs[FEATURE_F0_MIDI_SCALED])
         x_l = self.MLP_l(inputs[FEATURE_LD_SCALED])
         inputs = [x_f0, x_l]
-        
+
+        for (feature_name, mlp) in self.MLPs_for_midi_features.items():
+            inputs.append(mlp(inputs[feature_name]))
+
         x = tf.concat(inputs, axis=-1)
         x = self.rnn(x)
         x = tf.concat(inputs + [x], axis=-1) 
