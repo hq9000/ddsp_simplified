@@ -1,11 +1,13 @@
 import tensorflow as tf
+from tensorflow.keras import Sequential
 from tensorflow.keras import layers as tfkl
 
 from dsp_utils.core import resample
+from feature_names import FEATURE_F0_MIDI_SCALED, FEATURE_LD_SCALED
 
 from utilities import at_least_3d
 
-class MLP(tf.keras.Sequential):
+class MLP(Sequential):
     """Stack Dense -> LayerNorm -> Leaky ReLU layers."""  
     def __init__(self, output_dim=256, n_layers=2, **kwargs):
         layers = []
@@ -41,8 +43,8 @@ class DecoderWithoutLatent(tfkl.Layer):
 
     def call(self, inputs):
         
-        x_f0 = self.MLP_f0(inputs['f0_midi_scaled'])
-        x_l = self.MLP_l(inputs['ld_scaled'])
+        x_f0 = self.MLP_f0(inputs[FEATURE_F0_MIDI_SCALED])
+        x_l = self.MLP_l(inputs[FEATURE_LD_SCALED])
         inputs = [x_f0, x_l]
         
         x = tf.concat(inputs, axis=-1)

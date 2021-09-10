@@ -6,6 +6,7 @@ import tensorflow_addons as tfa
 
 from dsp_utils.core import resample, hz_to_midi
 from dsp_utils.spectral_ops import F0_RANGE
+from feature_names import FEATURE_F0_MIDI_SCALED, FEATURE_LD_SCALED, FEATURE_F0_HZ, FEATURE_Z
 
 from resnet import ResNet
 from utilities import at_least_3d
@@ -52,10 +53,10 @@ class UnsupervisedEncoder(tfkl.Layer):
 
         f0_midi_scaled = hz_to_midi(f0_hz) / F0_RANGE         
         
-        return {'z': z,
-                'f0_hz': f0_hz,
-                'f0_midi_scaled': f0_midi_scaled,
-                'ld_scaled': ld_scaled}
+        return {FEATURE_Z: z,
+                FEATURE_F0_HZ: f0_hz,
+                FEATURE_F0_MIDI_SCALED: f0_midi_scaled,
+                FEATURE_LD_SCALED: ld_scaled}
                
 
 ## ----------------------------------- Individual Encoders ---------------------------------------------

@@ -5,9 +5,8 @@ from tensorflow.keras import layers as tfkl
 
 from dsp_utils import spectral_ops
 from dsp_utils.core import resample, midi_to_hz, hz_to_midi
-
-FEATURE_KEY_F0_HZ = "f0_hz"
-FEATURE_KEY_LOUDNESS_DB = "loudness_db"
+from feature_names import FEATURE_F0_HZ, FEATURE_F0_MIDI_SCALED, FEATURE_LD_SCALED, INPUT_FEATURE_F0_HZ, \
+    INPUT_FEATURE_LOUDNESS_DB
 
 F0_RANGE = spectral_ops.F0_RANGE
 LD_RANGE = spectral_ops.LD_RANGE
@@ -27,14 +26,14 @@ class F0LoudnessAndMidiFeaturesPreprocessor(tfkl.Layer):
     def call(self, inputs: Dict[str, np.ndarray], *args, **kwargs):
 
         preprocessed_audio_features = self._preprocess_audio_features(inputs={
-            FEATURE_KEY_F0_HZ: inputs[FEATURE_KEY_F0_HZ],
-            FEATURE_KEY_LOUDNESS_DB: inputs[FEATURE_KEY_LOUDNESS_DB]
+            INPUT_FEATURE_F0_HZ: inputs[INPUT_FEATURE_F0_HZ],
+            INPUT_FEATURE_LOUDNESS_DB: inputs[INPUT_FEATURE_LOUDNESS_DB]
         })
 
-        inputs_with_midi_features_only = dict(inputs)
+        inputs_with_midi_features_only = dict(inputs)  # create a copy
 
-        del inputs_with_midi_features_only[FEATURE_KEY_F0_HZ]
-        del inputs_with_midi_features_only[FEATURE_KEY_LOUDNESS_DB]
+        del inputs_with_midi_features_only[INPUT_FEATURE_F0_HZ]
+        del inputs_with_midi_features_only[INPUT_FEATURE_LOUDNESS_DB]
 
         preprocessed_midi_features = self._preprocess_midi_features(
             inputs=inputs_with_midi_features_only
@@ -48,8 +47,8 @@ class F0LoudnessAndMidiFeaturesPreprocessor(tfkl.Layer):
     def _preprocess_audio_features(self, inputs: Dict[str, np.ndarray]) -> Dict[str, np.ndarray]:
 
         # Downsample features, but do not update them in the dict
-        f0_hz = self.resample(inputs["f0_hz"])
-        loudness_db = self.resample(inputs["loudness_db"])
+        f0_hz = self.resample(inputs[INPUT_FEATURE_F0_HZ])
+        loudness_db = self.resample(inputs[INPUT_FEATURE_LOUDNESS_DB])
 
         # For NN training, scale frequency and loudness to the range [0, 1].
         # Log-scale f0 features. Loudness from [-1, 0] to [1, 0].
@@ -57,9 +56,9 @@ class F0LoudnessAndMidiFeaturesPreprocessor(tfkl.Layer):
         f0_midi_scaled = hz_to_midi(f0_hz) / F0_RANGE
         ld_scaled = (loudness_db / LD_RANGE) + 1.0
 
-        return {"f0_hz": at_least_3d(inputs["f0_hz"]),  # kept for the harmonic synth, convert to 3d here
-                "f0_midi_scaled": f0_midi_scaled,  # used in the decoder in this form
-                "ld_scaled": ld_scaled}  # same as f0_midi_scaled
+        return {FEATURE_F0_HZ: at_least_3d(inputs[INPUT_FEATURE_F0_HZ]),  # kept for the harmonic synth, convert to 3d here
+                FEATURE_F0_MIDI_SCALED: f0_midi_scaled,  # used in the decoder in this form
+                FEATURE_LD_SCALED: ld_scaled}  # same as f0_midi_scaled
 
     def _preprocess_midi_features(self, inputs: Dict[str, np.ndarray]) -> Dict[str, np.ndarray]:
         res = {}

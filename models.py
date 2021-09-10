@@ -129,8 +129,8 @@ class SupervisedAutoencoder(Autoencoder):
 
     def encode(self, features): 
         """Loudness and F0 is read. z is encoded optionally."""
-        
-        if self.preprocessor is not None: # Downsample and Scale the features
+
+        if self.preprocessor is not None:  # Downsample and Scale the features
             processed_features = self.preprocessor(features)
             features.update(processed_features)
         if self.encoder is not None:
