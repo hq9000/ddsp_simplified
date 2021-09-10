@@ -2,7 +2,7 @@ from typing import Dict
 
 import numpy as np
 
-from feature_names import INPUT_FEATURE_F0_HZ, INPUT_FEATURE_LOUDNESS_DB
+from feature_names import INPUT_FEATURE_F0_HZ, INPUT_FEATURE_LOUDNESS_DB, MIDI_FEATURE_PITCH, MIDI_FEATURE_VELOCITY
 
 
 class HeuristicAudioFeaturesGenerator:
@@ -25,6 +25,15 @@ class HeuristicAudioFeaturesGenerator:
         length = len(list(midi_features.items())[0][1])
 
         return {
-            INPUT_FEATURE_F0_HZ: self._generate_f0(midi_features),
-            INPUT_FEATURE_LOUDNESS_DB: np.zeros(dtype=np.float32, shape=(length,))
+            INPUT_FEATURE_F0_HZ: self._generate_f0_hz_by_pitches(midi_features[MIDI_FEATURE_PITCH]),
+            INPUT_FEATURE_LOUDNESS_DB: self._generate_loudness_db_by_velocity(midi_features[MIDI_FEATURE_VELOCITY])
         }
+
+    def _generate_f0_hz_by_pitches(self, pitch_array: np.ndarray) -> np.ndarray:
+        # todo
+        pass
+
+    def _generate_loudness_db_by_velocity(self, velocity_array: np.ndarray) -> np.ndarray:
+        # todo
+        pass
+
