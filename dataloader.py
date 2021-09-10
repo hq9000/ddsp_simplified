@@ -60,7 +60,13 @@ def make_supervised_dataset(path, mfcc=False, batch_size=32, sample_rate=16000,
 
         if need_midi:
             midi_file_name = guess_midi_file_name_by_audio_file_name(audio_file_name)
-            raw_midi_features_data = get_raw_midi_features_from_file(midi_file_name, frame_rate, audio_data.shape[0] / sample_rate)
+            raw_midi_features_data = get_raw_midi_features_from_file(
+                path_to_midi_file=midi_file_name,
+                frame_rate=frame_rate,
+                audio_length_seconds=audio_data.shape[0] / sample_rate,
+                only_these_features=midi_feature_names
+            )
+
             raw_midi_features_data = _filter_midi_features_data(raw_midi_features_data, midi_feature_names)
 
             generated_midi_feature_examples = generate_midi_features_examples(raw_midi_features_data, int(length_of_example_seconds * frame_rate))

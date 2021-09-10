@@ -1,5 +1,5 @@
 from hashlib import md5
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 import numpy as np
 from scipy.io.wavfile import write
@@ -84,7 +84,12 @@ def load_track(path, sample_rate=16000, pitch_shift=0, normalize=False):
 
     return track
 
-def get_raw_midi_features_from_file(path_to_midi_file: str, frame_rate: int, audio_length_seconds: float)->Dict[str, np.ndarray]:
+
+def get_raw_midi_features_from_file(
+        path_to_midi_file: str,
+        frame_rate: int,
+        audio_length_seconds: float,
+        only_these_features: Optional[List[str]] = None) -> Dict[str, np.ndarray]:
     """
     Load a midi file amd return a dictionary of certain raw midi features.
 
@@ -102,7 +107,8 @@ def get_raw_midi_features_from_file(path_to_midi_file: str, frame_rate: int, aud
         path_to_midi_file (str): absolute path to a MIDI file to be loaded
         frame_rate (int): rate at which midi features will be samples
         audio_length_seconds (float): full length (in seconds) of the corresponding audio file
-
+        only_these_features (Optional[List[str]]): if provided, only features named
+            in this list will be included, otherwise all possible features will be read
     Returns:
         Dict[str, np.ndarray]: a dictionary mapping names of the midi features (as defined in MidiLoader class constants)
                                into corresponding numpy arrays
@@ -111,7 +117,8 @@ def get_raw_midi_features_from_file(path_to_midi_file: str, frame_rate: int, aud
     return loader.load(
         midi_file_name=path_to_midi_file,
         frame_rate=frame_rate,
-        audio_length_seconds=audio_length_seconds
+        audio_length_seconds=audio_length_seconds,
+        only_these_features=only_these_features
     )
 
 def write_audio(audio, output_path, sample_rate=16000, normalize=False):

@@ -51,13 +51,15 @@ class DecoderWithoutLatent(tfkl.Layer):
         self.timesteps = timesteps
 
     def call(self, inputs: Dict[str, Any], *args, **kwargs):
-        
+
+        raw_inputs = inputs  # we need this as this name is later bound to something else
+
         x_f0 = self.MLP_f0(inputs[FEATURE_F0_MIDI_SCALED])
         x_l = self.MLP_l(inputs[FEATURE_LD_SCALED])
         inputs = [x_f0, x_l]
 
         for (feature_name, mlp) in self.MLPs_for_midi_features.items():
-            inputs.append(mlp(inputs[feature_name]))
+            inputs.append(mlp(raw_inputs[feature_name]))
 
         x = tf.concat(inputs, axis=-1)
         x = self.rnn(x)

@@ -51,7 +51,8 @@ def make_supervised_model(config):
         decoder = DecoderWithLatent(timesteps=config['model']['decoder_time'])
     else:
         encoder = None
-        decoder = DecoderWithoutLatent(timesteps=config['model']['decoder_time'])
+        decoder = DecoderWithoutLatent(timesteps=config['model']['decoder_time'],
+                                       midi_features=config['data']['midi_features'])
     loss = SpectralLoss(logmag_weight=config['loss']['logmag_weight'])
     model = SupervisedAutoencoder(preprocessor=preprocessor,
                                 encoder=encoder,
