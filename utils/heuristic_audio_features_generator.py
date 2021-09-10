@@ -25,6 +25,6 @@ class HeuristicAudioFeaturesGenerator:
         length = len(list(midi_features.items())[0][1])
 
         return {
-            INPUT_FEATURE_F0_HZ: np.zeros(dtype=np.float32, shape=(length,)),
+            INPUT_FEATURE_F0_HZ: self._generate_f0(midi_features),
             INPUT_FEATURE_LOUDNESS_DB: np.zeros(dtype=np.float32, shape=(length,))
         }

@@ -4,12 +4,11 @@ import numpy as np
 import pretty_midi
 from pretty_midi import Instrument, ControlChange, Note
 
+from feature_names import MIDI_FEATURE_CC_PREFIX, MIDI_FEATURE_VELOCITY, MIDI_FEATURE_PITCH, \
+    MIDI_FEATURE_DISTANCE_FROM_ONSET
+
 
 class MidiLoader:
-    FEATURE_VELOCITY = 'velocity'
-    FEATURE_PITCH = 'pitch'
-    FEATURE_CC_PREFIX = 'cc_'
-    FEATURE_DISTANCE_FROM_ONSET = 'distance_from_onset'
 
     def load(self,
              midi_file_name: str,
@@ -51,7 +50,7 @@ class MidiLoader:
             control_number: int
             data_for_one_cc = self._generate_data_for_one_cc(audio_length_seconds, frame_rate,
                                                              control_changes_by_cc_number[control_number])
-            res[MidiLoader.FEATURE_CC_PREFIX + str(control_number)] = data_for_one_cc
+            res[MIDI_FEATURE_CC_PREFIX + str(control_number)] = data_for_one_cc
 
         def get_pitch(note: Note) -> np.float32:
             return np.float32(note.pitch)
@@ -59,17 +58,17 @@ class MidiLoader:
         def get_velocity(note: Note) -> np.float32:
             return np.float32(note.velocity)
 
-        res[self.FEATURE_VELOCITY] = self._generate_single_value_data_for_notes(instrument=instrument,
+        res[MIDI_FEATURE_VELOCITY] = self._generate_single_value_data_for_notes(instrument=instrument,
                                                                                 frame_rate=frame_rate,
                                                                                 audio_length_seconds=audio_length_seconds,
                                                                                 get_single_feature_value_from_note_func=get_velocity)
 
-        res[self.FEATURE_PITCH] = self._generate_single_value_data_for_notes(instrument=instrument,
+        res[MIDI_FEATURE_PITCH] = self._generate_single_value_data_for_notes(instrument=instrument,
                                                                              frame_rate=frame_rate,
                                                                              audio_length_seconds=audio_length_seconds,
                                                                              get_single_feature_value_from_note_func=get_pitch)
 
-        res[self.FEATURE_DISTANCE_FROM_ONSET] = self._generate_distance_from_onset_data(
+        res[MIDI_FEATURE_DISTANCE_FROM_ONSET] = self._generate_distance_from_onset_data(
             instrument,
             frame_rate,
             audio_length_seconds
