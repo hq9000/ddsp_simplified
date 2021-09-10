@@ -22,7 +22,7 @@ def main():
     with open(args.config_path, 'r') as file:
         config = dict(yaml.load(file, Loader=yaml.FullLoader))
 
-    frame_rate: int = config['audio']['frame_rate']
+    frame_rate: int = config['data']['frame_rate']
     model = _create_model_and_load_weights(config)
     midi_feature_names: List[str] = config['data']['midi_features']
 

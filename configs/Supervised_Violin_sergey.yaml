@@ -28,7 +28,8 @@ model:
   # Whether to use the reverb module
   reverb: True
   # Directory to save the model in
-  # leave empty for auto 
+  # leave empty for auto
+  path: /home/sergey/infinite_album/ddsp_simplified/ddsp_simplified/wandb/run-20210910_112756-11urc4uq/files/NoLatent_Reverb/best_model/model.ckpt
   dir:  
 loss:
   type: spectral
@@ -40,4 +41,4 @@ optimizer:
   lr: 0.001
 training:
   batch_size: 32
-  epochs: 1000
+  epochs: 2

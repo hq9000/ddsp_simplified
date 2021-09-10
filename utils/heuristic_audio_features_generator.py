@@ -2,6 +2,8 @@ from typing import Dict
 
 import numpy as np
 
+from feature_names import INPUT_FEATURE_F0_HZ, INPUT_FEATURE_LOUDNESS_DB
+
 
 class HeuristicAudioFeaturesGenerator:
     def generate(self, midi_features: Dict[str, np.ndarray]) -> Dict[str, np.ndarray]:
@@ -20,5 +22,9 @@ class HeuristicAudioFeaturesGenerator:
 
         the length of output arrays is the same as the one of input arrays.
         """
+        length = len(list(midi_features.items())[0][1])
 
-        pass
+        return {
+            INPUT_FEATURE_F0_HZ: np.zeros(dtype=np.float32, shape=(length,)),
+            INPUT_FEATURE_LOUDNESS_DB: np.zeros(dtype=np.float32, shape=(length,))
+        }
