@@ -5,6 +5,7 @@ import librosa
 import numpy as np
 import yaml
 
+from feature_names import MIDI_FEATURE_PITCH, MIDI_FEATURE_VELOCITY
 from models import SupervisedAutoencoder, Autoencoder
 from train_utils import make_supervised_model
 from utils.heuristic_audio_features_generator import HeuristicAudioFeaturesGenerator
@@ -29,7 +30,7 @@ def main():
     audio = _synthesize_audio_by_midi(model,
                                       path_to_midi_file=args.midi_file,
                                       frame_rate=frame_rate,
-                                      length_of_audio_seconds=10,
+                                      length_of_audio_seconds=11,
                                       midi_feature_names=midi_feature_names)
 
     _write_audio_to_file(audio, '/tmp/hello_world.wav')
@@ -41,6 +42,19 @@ def _create_model_and_load_weights(config) -> SupervisedAutoencoder:
     return model
 
 
+def _get_midi_feature_names_augmented_with_pitch_and_velocity(midi_feature_names: List[str]) -> List[str]:
+    midi_feature_names = list(midi_feature_names)
+
+    for unexpected_midi_feature in [MIDI_FEATURE_PITCH, MIDI_FEATURE_VELOCITY]:
+        if unexpected_midi_feature in midi_feature_names:
+            raise Exception(
+                unexpected_midi_feature + " is in the original list of midi features. This is not expected!")
+
+    midi_feature_names.append(MIDI_FEATURE_PITCH)
+    midi_feature_names.append(MIDI_FEATURE_VELOCITY)
+
+    return midi_feature_names
+
 def _synthesize_audio_by_midi(
         model: Autoencoder,
         path_to_midi_file: str,
@@ -49,6 +63,7 @@ def _synthesize_audio_by_midi(
         midi_feature_names: List[str]
 ) -> np.ndarray:
     midi_loader = MidiLoader()
+    midi_feature_names = _get_midi_feature_names_augmented_with_pitch_and_velocity(midi_feature_names)
 
     midi_features = midi_loader.load(
         midi_file_name=path_to_midi_file,
@@ -58,6 +73,11 @@ def _synthesize_audio_by_midi(
 
     audio_features_generator = HeuristicAudioFeaturesGenerator()
     heuristic_audio_features = audio_features_generator.generate(midi_features)
+
+    # we do not need pitch and velocity as midi feature as they
+    # have already been encoded as heuristic audio features
+    del midi_features[MIDI_FEATURE_VELOCITY]
+    del midi_features[MIDI_FEATURE_PITCH]
 
     features = {
         **heuristic_audio_features,

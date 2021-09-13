@@ -22,6 +22,13 @@ class HeuristicAudioFeaturesGenerator:
 
         the length of output arrays is the same as the one of input arrays.
         """
+
+        if MIDI_FEATURE_PITCH not in midi_features:
+            raise Exception('a midi features dict is missing pitch data')
+
+        if MIDI_FEATURE_VELOCITY not in midi_features:
+            raise Exception('a midi features dict is missing velocity data')
+
         return {
             INPUT_FEATURE_F0_HZ: self._generate_f0_hz_by_pitches(midi_features[MIDI_FEATURE_PITCH]),
             INPUT_FEATURE_LOUDNESS_DB: self._generate_loudness_db_by_velocity(midi_features[MIDI_FEATURE_VELOCITY])
