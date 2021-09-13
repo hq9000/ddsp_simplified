@@ -22,18 +22,14 @@ class HeuristicAudioFeaturesGenerator:
 
         the length of output arrays is the same as the one of input arrays.
         """
-        length = len(list(midi_features.items())[0][1])
-
         return {
             INPUT_FEATURE_F0_HZ: self._generate_f0_hz_by_pitches(midi_features[MIDI_FEATURE_PITCH]),
             INPUT_FEATURE_LOUDNESS_DB: self._generate_loudness_db_by_velocity(midi_features[MIDI_FEATURE_VELOCITY])
         }
 
     def _generate_f0_hz_by_pitches(self, pitch_array: np.ndarray) -> np.ndarray:
-        # todo
-        pass
+        return (2 ** ((pitch_array - 69) / 12)) * 440
 
     def _generate_loudness_db_by_velocity(self, velocity_array: np.ndarray) -> np.ndarray:
-        # todo
-        pass
+        return velocity_array / 127
 
