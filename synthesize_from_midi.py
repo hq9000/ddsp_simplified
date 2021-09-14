@@ -30,10 +30,10 @@ def main():
     audio = _synthesize_audio_by_midi(model,
                                       path_to_midi_file=args.midi_file,
                                       frame_rate=frame_rate,
-                                      length_of_audio_seconds=11,
+                                      length_of_audio_seconds=4,  # important! anything but 4 wont work!!!!
                                       midi_feature_names=midi_feature_names)
 
-    _write_audio_to_file(audio, '/tmp/hello_world.wav')
+    _write_audio_to_file(audio, '/tmp/hello_world.wav', sample_rate=16000, normalize=False)
 
 
 def _create_model_and_load_weights(config) -> SupervisedAutoencoder:
