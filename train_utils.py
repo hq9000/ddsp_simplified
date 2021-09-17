@@ -64,10 +64,18 @@ def make_supervised_model(config):
 
 # -------------------------------------- Optimizer -------------------------------------------------
 
-def make_optimizer(config):
-    optimizer = Adam(learning_rate=ExponentialDecay(config['optimizer']['lr'],
-                                decay_steps=config['optimizer']['decay_steps'],
-                                decay_rate=config['optimizer']['decay_rate']))    
+
+def make_optimizer(config) -> Adam:
+
+    if 'decay_steps' in config['optimizer']:
+        learning_rate = ExponentialDecay(initial_learning_rate=config['optimizer']['lr'],
+                                         decay_steps=config['optimizer']['decay_steps'],
+                                         decay_rate=config['optimizer']['decay_rate'])
+    else:
+        learning_rate = config['optimizer']['lr']
+
+    optimizer = Adam(learning_rate=learning_rate)
+
     return optimizer                                    
 
 # -------------------------------------- Callbacks -------------------------------------------------
@@ -93,7 +101,6 @@ def create_callbacks(config, monitor):
     return callbacks
 
 # -------------------------------------- Datasets -------------------------------------------------      
-
 def make_supervised_dataset_from_config(config: Dict):
     try: # deal with no mfcc_nfft control versions 
         mfcc_nfft = config['data']['mfcc_nfft']
