@@ -29,7 +29,7 @@ model:
   reverb: True
   # Directory to save the model in
   # leave empty for auto
-  path: /home/sergey/infinite_album/ddsp_simplified/ddsp_simplified/wandb/run-20210910_112756-11urc4uq/files/NoLatent_Reverb/best_model/model.ckpt
+  path:
   dir:  
 loss:
   type: spectral
@@ -40,5 +40,8 @@ optimizer:
   decay_steps: 10000
   lr: 0.001
 training:
+  path_for_weights_preloading: D:\home\sergey\infinite_album\guitar_synth\ddsp_simplified\ddsp_simplified\wandb\run-20210916_210018-120vb8zq\files\no_LR_decay_GPU_bs8_1000\best_model\model.ckpt
   batch_size: 32
   epochs: 2
+inference:
+  saved_model_path: /home/sergey/infinite_album/ddsp_simplified/ddsp_simplified/wandb/run-20210910_112756-11urc4uq/files/NoLatent_Reverb/best_model/model.ckpt

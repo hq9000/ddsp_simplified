@@ -1,4 +1,4 @@
-run_name: no_LR_decay_GPU_bs8_1000
+run_name: no_LR_decay_GPU_bs8_1000_continuation
 #run_name: NoLatent_Reverb_ConfFiltered
 #run_name: NoLatent_Reverb_Normalized
 # Leave empty for not using wandb
@@ -39,7 +39,10 @@ optimizer:
   name: Adam
   #decay_rate: 0.98
   #decay_steps: 10000
-  lr: 0.001
+  lr: 0.0001
 training:
-  batch_size: 8
+  batch_size: 12
   epochs: 1000
+  path_for_weights_preloading: D:\home\sergey\infinite_album\guitar_synth\ddsp_simplified\ddsp_simplified\wandb\run-20210916_210018-120vb8zq\files\no_LR_decay_GPU_bs8_1000\best_model\model.ckpt
+inference:
+  saved_model_path: D:\home\sergey\infinite_album\guitar_synth\ddsp_simplified\ddsp_simplified\wandb\run-20210916_210018-120vb8zq\files\no_LR_decay_GPU_bs8_1000\best_model\model.ckpt

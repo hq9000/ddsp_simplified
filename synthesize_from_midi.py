@@ -5,6 +5,7 @@ import librosa
 import numpy as np
 import yaml
 
+from ddsp_simplified.config_key_constants import INFERENCE, SAVED_MODEL_PATH
 from feature_names import MIDI_FEATURE_PITCH, MIDI_FEATURE_VELOCITY
 from models import SupervisedAutoencoder, Autoencoder
 from train_utils import make_supervised_model
@@ -38,7 +39,7 @@ def main():
 
 def _create_model_and_load_weights(config) -> SupervisedAutoencoder:
     model = make_supervised_model(config)
-    model.load_weights(config['model']['path'])
+    model.load_weights(config[INFERENCE][SAVED_MODEL_PATH])
     return model
 
 
@@ -54,6 +55,7 @@ def _get_midi_feature_names_augmented_with_pitch_and_velocity(midi_feature_names
     midi_feature_names.append(MIDI_FEATURE_VELOCITY)
 
     return midi_feature_names
+
 
 def _synthesize_audio_by_midi(
         model: Autoencoder,

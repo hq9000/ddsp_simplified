@@ -43,7 +43,8 @@ def make_unsupervised_model(config):
                                 add_reverb=config['model']['reverb'])
     return model
 
-def make_supervised_model(config):
+
+def make_supervised_model(config) -> SupervisedAutoencoder:
     """Creates the necessary components of a supervised ddsp using the config."""
     preprocessor = F0LoudnessAndMidiFeaturesPreprocessor(timesteps=config['data']['preprocessing_time'])
     if config['model']['encoder']:
@@ -54,6 +55,7 @@ def make_supervised_model(config):
         decoder = DecoderWithoutLatent(timesteps=config['model']['decoder_time'],
                                        midi_features=config['data']['midi_features'])
     loss = SpectralLoss(logmag_weight=config['loss']['logmag_weight'])
+
     model = SupervisedAutoencoder(preprocessor=preprocessor,
                                 encoder=encoder,
                                 decoder=decoder,
