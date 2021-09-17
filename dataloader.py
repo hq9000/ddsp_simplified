@@ -8,7 +8,9 @@ from tensorflow.data import Dataset
 import tensorflow_datasets as tfds
 from sklearn.model_selection import train_test_split
 
-from feature_extraction import extract_features_from_frames, feature_extractor
+from ddsp_simplified.utils.heuristic_audio_features_generator import HeuristicAudioFeaturesGenerator
+from feature_extraction import extract_features_from_frames, feature_extractor, \
+    extract_features_from_audio_frames_using_heuristic_generator
 from utilities import frame_generator, load_track, get_raw_midi_features_from_file, generate_midi_features_examples, concat_dct
 
 MIDI_FILE_EXTENSION = 'MID'
@@ -58,6 +60,8 @@ def make_supervised_dataset(path, mfcc=False, batch_size=32, sample_rate=16000,
         generated_audio_frames = frame_generator(audio_data, int(length_of_example_seconds * sample_rate))
         ordered_audio_frames.extend(generated_audio_frames)  # create 4 seconds long frames\
 
+        heuristic_audio_features_generator = HeuristicAudioFeaturesGenerator()
+
         if need_midi:
             midi_file_name = guess_midi_file_name_by_audio_file_name(audio_file_name)
             raw_midi_features_data = get_raw_midi_features_from_file(
@@ -94,11 +98,23 @@ def make_supervised_dataset(path, mfcc=False, batch_size=32, sample_rate=16000,
     # audio_and_midi_features_frames = np.concatenate(audio_and_midi_features_frames, axis=0)
 
     print('Train set size: {}\nVal set size: {}'.format(len(trainX),len(valX)))
-    train_audio_and_audio_features = extract_features_from_frames(train_shuffled_audio_frames, mfcc=mfcc, sample_rate=sample_rate,
-                                                                  conf_threshold=conf_threshold, mfcc_nfft=mfcc_nfft)
-    val_audio_and_audio_features = extract_features_from_frames(val_shuffled_audio_frames, mfcc=mfcc, sample_rate=sample_rate,
-                                                                conf_threshold=conf_threshold, mfcc_nfft=mfcc_nfft)
 
+    extract_f0_and_loudness_from_audio = False
+
+    if extract_f0_and_loudness_from_audio:
+        train_audio_and_audio_features = extract_features_from_frames(train_shuffled_audio_frames, mfcc=mfcc, sample_rate=sample_rate,
+                                                                      conf_threshold=conf_threshold, mfcc_nfft=mfcc_nfft)
+        val_audio_and_audio_features = extract_features_from_frames(val_shuffled_audio_frames, mfcc=mfcc, sample_rate=sample_rate,
+                                                                    conf_threshold=conf_threshold, mfcc_nfft=mfcc_nfft)
+    else:
+        train_audio_and_audio_features = extract_features_from_audio_frames_using_heuristic_generator(
+            audio_frames=train_shuffled_audio_frames,
+            midi_frames=trainX
+        )
+        val_audio_and_audio_features = extract_features_from_audio_frames_using_heuristic_generator(
+            audio_frames=val_shuffled_audio_frames,
+            midi_frames=valX
+        )
     if need_midi:
         train_shuffled_midi_frames = [x[KEY_MIDI] for x in trainX]
         val_shuffled_midi_frames = [x[KEY_MIDI] for x in valX]

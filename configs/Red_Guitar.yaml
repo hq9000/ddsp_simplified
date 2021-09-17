@@ -42,3 +42,5 @@ optimizer:
 training:
   batch_size: 32
   epochs: 2
+inference:
+  path_to_midi_file: D:\home\sergey\infinite_album\guitar_synth\ddsp_simplified\ddsp_simplified\test_midis\test_midi1.mid

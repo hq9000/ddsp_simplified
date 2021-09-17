@@ -99,7 +99,7 @@ def create_callbacks(config, monitor):
             wandb_callback = CustomWandbCallback(config)
             model_dir = os.path.join(wandb_callback.wandb_run_dir, config['run_name'])
             callbacks = [ModelCheckpoint(save_dir=model_dir, monitor=monitor),
-                        wandb_callback]
+                         wandb_callback]
     return callbacks
 
 # -------------------------------------- Datasets -------------------------------------------------      
