@@ -5,10 +5,13 @@ import pretty_midi
 from pretty_midi import Instrument, ControlChange, Note
 
 from feature_names import MIDI_FEATURE_CC_PREFIX, MIDI_FEATURE_VELOCITY, MIDI_FEATURE_PITCH, \
-    MIDI_FEATURE_DISTANCE_FROM_ONSET
+    MIDI_FEATURE_DISTANCE_FROM_ONSET, MIDI_FEATURE_DISTANCE_TO_OFFSET
 
 
 class MidiLoader:
+
+    DISTANCE_TYPE_FROM_ONSET = 'from_onset'
+    DISTANCE_TYPE_TO_OFFSET = 'to_offset'
 
     def load(self,
              midi_file_name: str,
@@ -68,10 +71,18 @@ class MidiLoader:
                                                                              audio_length_seconds=audio_length_seconds,
                                                                              get_single_feature_value_from_note_func=get_pitch)
 
-        res[MIDI_FEATURE_DISTANCE_FROM_ONSET] = self._generate_distance_from_onset_data(
+        res[MIDI_FEATURE_DISTANCE_FROM_ONSET] = self._generate_distance_data(
             instrument,
             frame_rate,
-            audio_length_seconds
+            audio_length_seconds,
+            self.DISTANCE_TYPE_FROM_ONSET
+        )
+
+        res[MIDI_FEATURE_DISTANCE_TO_OFFSET] = self._generate_distance_data(
+            instrument,
+            frame_rate,
+            audio_length_seconds,
+            self.DISTANCE_TYPE_TO_OFFSET
         )
 
         if only_these_features is not None:
@@ -145,7 +156,13 @@ class MidiLoader:
 
         return res
 
-    def _generate_distance_from_onset_data(self, instrument: Instrument, frame_rate: int, audio_length_seconds: float):
+    def _generate_distance_data(
+            self,
+            instrument: Instrument,
+            frame_rate: int,
+            audio_length_seconds: float,
+            distance_type: str
+    ):
         """
         Generate data of "distance from onset" feature
         """
@@ -158,8 +175,18 @@ class MidiLoader:
             start_idx = int(note.start * frame_rate)
             end_idx = int(note.end * frame_rate)
 
-            final_value = note.end - note.start
-            patch = np.linspace(0, final_value, num=end_idx - start_idx, dtype=np.float32)
+            note_length_seconds = note.end - note.start
+
+            if distance_type == self.DISTANCE_TYPE_FROM_ONSET:
+                patch_start_value = 0
+                patch_end_value = note_length_seconds
+            elif distance_type == self.DISTANCE_TYPE_TO_OFFSET:
+                patch_start_value = note_length_seconds
+                patch_end_value = 0
+            else:
+                raise Exception("unsupported distance type " + distance_type)
+
+            patch = np.linspace(patch_start_value, patch_end_value, num=end_idx - start_idx, dtype=np.float32)
             res[start_idx:end_idx] = patch
 
         return res
