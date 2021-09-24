@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Optional
 
 import numpy as np
 
@@ -14,15 +14,18 @@ def synthesize_audio_by_midi(
         frame_rate: int,
         length_of_audio_seconds: float,
         midi_feature_names: List[str]
-) -> np.ndarray:
+) -> Optional[np.ndarray]:
     midi_loader = MidiLoader()
-    midi_feature_names = _get_midi_feature_names_augmented_with_pitch_and_velocity(midi_feature_names)
+    midi_feature_names = get_midi_feature_names_augmented_with_pitch_and_velocity(midi_feature_names)
 
     midi_features = midi_loader.load(
         midi_file_name=path_to_midi_file,
         frame_rate=frame_rate,
         audio_length_seconds=length_of_audio_seconds,
         only_these_features=midi_feature_names)
+
+    if midi_features is None:
+        return None
 
     audio_features_generator = HeuristicAudioFeaturesGenerator()
     heuristic_audio_features = audio_features_generator.generate(midi_features)
@@ -40,7 +43,7 @@ def synthesize_audio_by_midi(
     return model.transfer_timbre(features)
 
 
-def _get_midi_feature_names_augmented_with_pitch_and_velocity(midi_feature_names: List[str]) -> List[str]:
+def get_midi_feature_names_augmented_with_pitch_and_velocity(midi_feature_names: List[str]) -> List[str]:
     midi_feature_names = list(midi_feature_names)
 
     for unexpected_midi_feature in [MIDI_FEATURE_PITCH, MIDI_FEATURE_VELOCITY]:

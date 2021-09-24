@@ -8,6 +8,7 @@ from tensorflow.data import Dataset
 import tensorflow_datasets as tfds
 from sklearn.model_selection import train_test_split
 
+from ddsp_simplified.synthesize_from_midi_lib import get_midi_feature_names_augmented_with_pitch_and_velocity
 from ddsp_simplified.utils.heuristic_audio_features_generator import HeuristicAudioFeaturesGenerator
 from feature_extraction import extract_features_from_frames, feature_extractor, \
     extract_features_from_audio_frames_using_heuristic_generator
@@ -39,7 +40,9 @@ def _filter_midi_features_data(raw_midi_features_data: Dict[str, np.array], feat
 def make_supervised_dataset(path, mfcc=False, batch_size=32, sample_rate=16000,
                             normalize=False, conf_threshold=0.0, mfcc_nfft=1024,
                             frame_rate: int = 250,
-                            midi_feature_names: Optional[List[str]] = None
+                            midi_feature_names: Optional[List[str]] = None,
+                            empty_list_to_put_train_feature_frames: Optional[List] = None,
+                            empty_list_to_put_val_feature_frames: Optional[List] = None
                             ):
     """Loads all the mp3 and (optionally) midi files in the path, creates frames and extracts features."""
 
@@ -60,20 +63,25 @@ def make_supervised_dataset(path, mfcc=False, batch_size=32, sample_rate=16000,
         generated_audio_frames = frame_generator(audio_data, int(length_of_example_seconds * sample_rate))
         ordered_audio_frames.extend(generated_audio_frames)  # create 4 seconds long frames\
 
-        heuristic_audio_features_generator = HeuristicAudioFeaturesGenerator()
-
         if need_midi:
             midi_file_name = guess_midi_file_name_by_audio_file_name(audio_file_name)
-            raw_midi_features_data = get_raw_midi_features_from_file(
+
+            midi_feature_names_with_pitch_and_velocity = get_midi_feature_names_augmented_with_pitch_and_velocity(midi_feature_names)
+
+            raw_midi_features_data_with_pitch_and_velocity = get_raw_midi_features_from_file(
                 path_to_midi_file=midi_file_name,
                 frame_rate=frame_rate,
                 audio_length_seconds=audio_data.shape[0] / sample_rate,
-                only_these_features=midi_feature_names
+                only_these_features=midi_feature_names_with_pitch_and_velocity
             )
 
-            raw_midi_features_data = _filter_midi_features_data(raw_midi_features_data, midi_feature_names)
+            # raw_midi_features_data = _filter_midi_features_data(raw_midi_features_data_with_pitch_and_velocity,
+            #                                                     midi_feature_names)
 
-            generated_midi_feature_examples = generate_midi_features_examples(raw_midi_features_data, int(length_of_example_seconds * frame_rate))
+            generated_midi_feature_examples = generate_midi_features_examples(
+                raw_midi_features_data_with_pitch_and_velocity,
+                int(length_of_example_seconds * frame_rate)
+            )
             ordered_midi_features_frames.extend(generated_midi_feature_examples)
 
     combined_frames = []
@@ -134,6 +142,12 @@ def make_supervised_dataset(path, mfcc=False, batch_size=32, sample_rate=16000,
     else:
         combined_train_features = train_audio_and_audio_features
         combined_val_features = val_audio_and_audio_features
+
+    if empty_list_to_put_train_feature_frames is not None:
+        empty_list_to_put_train_feature_frames.append(combined_train_features)
+
+    if empty_list_to_put_val_feature_frames is not None:
+        empty_list_to_put_val_feature_frames.append(combined_val_features)
 
     train_dataset = _make_dataset(combined_train_features, batch_size)
     val_dataset = _make_dataset(combined_val_features, batch_size)

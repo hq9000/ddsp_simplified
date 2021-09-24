@@ -17,7 +17,19 @@ class MidiLoader:
              midi_file_name: str,
              frame_rate: int,
              audio_length_seconds: float,
-             only_these_features: List[str] = None):
+             only_these_features: List[str] = None) -> Optional[Dict[str, np.ndarray]]:
+
+        try:
+            return self._load_without_catching(midi_file_name, frame_rate, audio_length_seconds, only_these_features)
+        except InvalidMidiFileException:
+            print('invalid midi file faced: ' + midi_file_name)
+            return None
+
+    def _load_without_catching(self,
+             midi_file_name: str,
+             frame_rate: int,
+             audio_length_seconds: float,
+             only_these_features: List[str] = None) -> Dict[str, np.ndarray]:
         midi_data = pretty_midi.PrettyMIDI(midi_file_name)
 
         instruments: List[Instrument] = midi_data.instruments
@@ -41,7 +53,7 @@ class MidiLoader:
         time_of_last_midi_event = instrument.get_end_time()
 
         if time_of_last_midi_event > audio_length_seconds:
-            raise Exception(
+            raise InvalidMidiFileException(
                 f"time of last event in midi: {time_of_last_midi_event} overshoots the end of the audio: {audio_length_seconds}")
 
         res: Dict[str, np.ndarray] = {}
@@ -190,3 +202,7 @@ class MidiLoader:
             res[start_idx:end_idx] = patch
 
         return res
+
+
+class InvalidMidiFileException (Exception):
+    pass

@@ -7,5 +7,6 @@ TRAINING = "training"
 PATH_FOR_WEIGHTS_PRELOADING = "path_for_weights_preloading"
 
 INFERENCE = "inference"
+EXAMPLE_MIDI_FILES_DIR = "example_midi_files_dir"
 SAVED_MODEL_PATH = "saved_model_path"
-PATH_TO_MIDI_FILE_FOR_SYNTHESIS = "path_to_midi_file"
+PATHS_TO_MIDI_FILES_FOR_SYNTHESIS = "paths_to_midi_files"

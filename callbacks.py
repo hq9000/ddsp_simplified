@@ -1,13 +1,15 @@
 import os
-from typing import Dict
+from os import listdir
+from os.path import join, isfile
+from typing import Dict, List
 
 import numpy as np
 
 from tensorflow.keras.callbacks import Callback
 
 import wandb
-from ddsp_simplified.config_key_constants import INFERENCE, PATH_TO_MIDI_FILE_FOR_SYNTHESIS, DATA, FRAME_RATE, \
-    MIDI_FEATURES, SAMPLE_RATE
+from ddsp_simplified.config_key_constants import INFERENCE, PATHS_TO_MIDI_FILES_FOR_SYNTHESIS, DATA, FRAME_RATE, \
+    MIDI_FEATURES, SAMPLE_RATE, EXAMPLE_MIDI_FILES_DIR
 from ddsp_simplified.models import SupervisedAutoencoder
 from ddsp_simplified.synthesize_from_midi_lib import synthesize_audio_by_midi
 
@@ -62,21 +64,35 @@ class CustomWandbCallback(Callback):
     def on_epoch_end(self, epoch, logs=None):
 
         data_to_log = dict(logs)
-        # if epoch % 13 == 0:
-        #     data_to_log["test_log"] = epoch
 
         if epoch % 20 == 0:
-            audio = self._generate_audio(self.model, self._config)
-            data_to_log["synthesized_by_midi_test1"] = wandb.Audio(audio * 0.2, caption="OooOoo",
-                                                                   sample_rate=self._config[DATA][SAMPLE_RATE])
+            audios = self._generate_audios(self.model, self._config)
+            data_to_log["audio_examples"] = {}
+
+            for file_name, audio in audios.items():
+                data_to_log["audio_examples"][file_name] = wandb.Audio(audio * 0.4, caption=file_name,
+                                                                       sample_rate=self._config[DATA][SAMPLE_RATE])
 
         wandb.log(data_to_log)
 
-    def _generate_audio(self, model: SupervisedAutoencoder, config: Dict) -> np.ndarray:
-        return synthesize_audio_by_midi(
-            model=model,
-            path_to_midi_file=config[INFERENCE][PATH_TO_MIDI_FILE_FOR_SYNTHESIS],
-            frame_rate=config[DATA][FRAME_RATE],
-            length_of_audio_seconds=4.0,
-            midi_feature_names=config[DATA][MIDI_FEATURES]
-        )
+    def _generate_audios(self, model: SupervisedAutoencoder, config: Dict) -> Dict[str, np.ndarray]:
+
+        midi_files_directory: str = config[INFERENCE][EXAMPLE_MIDI_FILES_DIR]
+        all_midi_file_names = self._find_all_midi_files_name(midi_files_directory)
+
+        res = {}
+
+        for midi_file_name in all_midi_file_names:
+            audio = synthesize_audio_by_midi(model=model,
+                                             path_to_midi_file=join(midi_files_directory, midi_file_name),
+                                             frame_rate=config[DATA][FRAME_RATE],
+                                             length_of_audio_seconds=4.0,
+                                             midi_feature_names=config[DATA][MIDI_FEATURES])
+
+            if audio is not None:
+                res[midi_file_name] = audio
+
+        return res
+
+    def _find_all_midi_files_name(self, directory: str) -> List[str]:
+        return [f for f in listdir(directory) if isfile(join(directory, f)) and f.endswith('.mid')]

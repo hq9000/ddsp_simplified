@@ -1,4 +1,4 @@
-run_name: no_LR_decay_GPU_heuristic_features
+run_name: GPU_heuristic_features_plus_to_offset
 #run_name: NoLatent_Reverb_ConfFiltered
 #run_name: NoLatent_Reverb_Normalized
 # Leave empty for not using wandb
@@ -19,8 +19,7 @@ data:
   midi_features:
     - cc_55
     - distance_from_onset
-    - pitch
-    - velocity
+    - distance_to_offset
 
 model:
   type: Supervised
@@ -44,8 +43,8 @@ optimizer:
   lr: 0.001
 training:
   batch_size: 12
-  epochs: 3000
+  epochs: 30000
   # path_for_weights_preloading: D:\home\sergey\infinite_album\guitar_synth\ddsp_simplified\ddsp_simplified\wandb\run-20210916_210018-120vb8zq\files\no_LR_decay_GPU_bs8_1000\best_model\model.ckpt
 inference:
   saved_model_path: D:\home\sergey\infinite_album\guitar_synth\ddsp_simplified\ddsp_simplified\wandb\run-20210916_210018-120vb8zq\files\no_LR_decay_GPU_bs8_1000\best_model\model.ckpt
-  path_to_midi_file: D:\home\sergey\infinite_album\guitar_synth\ddsp_simplified\ddsp_simplified\test_midis\test_midi1.mid
+  example_midi_files_dir: D:\home\sergey\infinite_album\guitar_synth\ddsp_simplified\ddsp_simplified\test_midis\
