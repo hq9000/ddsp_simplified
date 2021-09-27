@@ -65,7 +65,7 @@ class CustomWandbCallback(Callback):
 
         data_to_log = dict(logs)
 
-        if epoch % 20 == 0:
+        if epoch % 100 == 0:
             audios = self._generate_audios(self.model, self._config)
             data_to_log["audio_examples"] = {}
 

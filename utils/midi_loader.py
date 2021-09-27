@@ -97,6 +97,14 @@ class MidiLoader:
             self.DISTANCE_TYPE_TO_OFFSET
         )
 
+        for required_feature in only_these_features:
+            if required_feature not in res:
+                # currently default is "1"
+                # and what can be missing is certain CC we just
+                # added and therefore it does not exist in previously
+                # created test midis
+                self._add_default_value_for_missing_feature(required_feature, res, 1)
+
         if only_these_features is not None:
             filtered_res = {}
             for feature_name in only_these_features:
@@ -202,6 +210,10 @@ class MidiLoader:
             res[start_idx:end_idx] = patch
 
         return res
+
+    def _add_default_value_for_missing_feature(self, missing_required_feature: str, res: Dict[str, np.ndarray], value: float):
+        size = list(res.values())[0].shape[0]
+        res[missing_required_feature] = np.full((size,), value, dtype=np.float32)
 
 
 class InvalidMidiFileException (Exception):

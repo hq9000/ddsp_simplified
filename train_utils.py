@@ -1,6 +1,8 @@
 import os
+import pathlib
 from typing import Dict
 
+import keras.callbacks
 from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.optimizers.schedules import ExponentialDecay 
 
@@ -95,11 +97,14 @@ def create_callbacks(config, monitor):
         if not config['wandb']: # define a save_dir
             model_dir = "model_checkpoints/{}".format(config['run_name'])
             callbacks = [ModelCheckpoint(save_dir=model_dir, monitor=monitor)]
-        else: # save to wandb.run.dir
+        else:  # save to wandb.run.dir
+            log_dir = str(pathlib.Path(__file__).parent.resolve()) + '/tensorboard'
+            tensorboard_callback = keras.callbacks.TensorBoard(log_dir)
             wandb_callback = CustomWandbCallback(config)
             model_dir = os.path.join(wandb_callback.wandb_run_dir, config['run_name'])
             callbacks = [ModelCheckpoint(save_dir=model_dir, monitor=monitor),
-                         wandb_callback]
+                         wandb_callback,
+                         tensorboard_callback]
     return callbacks
 
 # -------------------------------------- Datasets -------------------------------------------------      
