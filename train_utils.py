@@ -4,8 +4,9 @@ from typing import Dict
 
 import keras.callbacks
 from tensorflow.keras.optimizers import Adam
-from tensorflow.keras.optimizers.schedules import ExponentialDecay 
+from tensorflow.keras.optimizers.schedules import ExponentialDecay
 
+from config_key_constants import MODEL, ADDITIONAL_HARMONIC_NEEDED
 from preprocessing import F0LoudnessAndMidiFeaturesPreprocessor, LoudnessPreprocessor
 from encoders import SupervisedEncoder, UnsupervisedEncoder
 from models import SupervisedAutoencoder, UnsupervisedAutoencoder
@@ -49,13 +50,20 @@ def make_unsupervised_model(config):
 def make_supervised_model(config) -> SupervisedAutoencoder:
     """Creates the necessary components of a supervised ddsp using the config."""
     preprocessor = F0LoudnessAndMidiFeaturesPreprocessor(timesteps=config['data']['preprocessing_time'])
+
+    additional_harmonic_needed = False
+    if ADDITIONAL_HARMONIC_NEEDED in config[MODEL]:
+        additional_harmonic_needed = additional_harmonic_needed = config[MODEL][ADDITIONAL_HARMONIC_NEEDED]
+
     if config['model']['encoder']:
         encoder = SupervisedEncoder()
         decoder = DecoderWithLatent(timesteps=config['model']['decoder_time'])
     else:
         encoder = None
         decoder = DecoderWithoutLatent(timesteps=config['model']['decoder_time'],
-                                       midi_features=config['data']['midi_features'])
+                                       midi_features=config['data']['midi_features'],
+                                       additional_harmonic_needed=additional_harmonic_needed)
+
     loss = SpectralLoss(logmag_weight=config['loss']['logmag_weight'])
 
     model = SupervisedAutoencoder(preprocessor=preprocessor,
@@ -63,7 +71,8 @@ def make_supervised_model(config) -> SupervisedAutoencoder:
                                 decoder=decoder,
                                 loss_fn=loss,
                                 tracker_names=['spec_loss'],
-                                add_reverb=config['model']['reverb'])
+                                add_reverb=config['model']['reverb'],
+                                additional_harmonic_needed=additional_harmonic_needed)
     return model
 
 # -------------------------------------- Optimizer -------------------------------------------------
