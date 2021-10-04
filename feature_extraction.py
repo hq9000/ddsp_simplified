@@ -5,7 +5,7 @@ import numpy as np
 from ddsp_simplified.utils.heuristic_audio_features_generator import HeuristicAudioFeaturesGenerator
 from dsp_utils.spectral_ops import compute_loudness, compute_f0, compute_mfcc, compute_logmel
 from feature_names import INPUT_FEATURE_LOUDNESS_DB, INPUT_FEATURE_F0_HZ, INPUT_FEATURE_MFCC, INPUT_FEATURE_LOG_MEL
-from models import AUDIO_SYNTH
+from misc_constants import AUDIO_SYNTH
 
 from utilities import concat_dct, frame_generator
 

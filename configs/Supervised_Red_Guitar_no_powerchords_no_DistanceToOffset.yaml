@@ -1,4 +1,4 @@
-run_name: With powerchords
+run_name: without 56, without powerchords + DTOffset!
 #run_name: NoLatent_Reverb_ConfFiltered
 #run_name: NoLatent_Reverb_Normalized
 # Leave empty for not using wandb
@@ -6,7 +6,7 @@ wandb:
   project_name: Red_Guitar
 data:
   instrument: Violin
-  path: D:\home\sergey\infinite_album\guitar_synth\ddsp_simplified\ddsp_simplified\audio_clips\Red_Guitar_with_powerchords
+  path: D:\home\sergey\infinite_album\guitar_synth\ddsp_simplified\ddsp_simplified\audio_clips\Red_Guitar
   # Frame rate at the encoder
   preprocessing_time: 250
   sample_rate: 16000
@@ -18,7 +18,6 @@ data:
   normalize: False
   midi_features:
     - cc_55
-    - cc_56
     - distance_from_onset
     - distance_to_offset
 

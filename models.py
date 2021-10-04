@@ -1,14 +1,11 @@
 from abc import abstractmethod, ABC
 from typing import Optional, List
 
-import tensorflow as tf
 from tensorflow.keras.models import Model
 from tensorflow.keras import metrics as tfkm
 
 from decoders import HARMONIC_OUT_ADDITIONAL
 from synthesizers import *
-
-AUDIO_SYNTH = "audio_synth"
 
 
 class Autoencoder(Model, ABC):
@@ -180,7 +177,7 @@ class SupervisedAutoencoder(Autoencoder):
     def decode(self, features):
         """Map the f,l (,z) parameters to synthesizer parameters."""
         
-        outputs = self.decoder(features)       
+        outputs = self.decoder(features)
         features.update(outputs)
         return features
      

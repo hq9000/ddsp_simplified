@@ -5,7 +5,7 @@ from tensorflow.keras import layers as tfkl
 
 from decoders import HARMONIC_OUT, AMP_OUT
 from dsp_utils import core
-from models import AUDIO_SYNTH
+from misc_constants import AUDIO_SYNTH
 
 
 class HarmonicSynthesizer(tfkl.Layer):
