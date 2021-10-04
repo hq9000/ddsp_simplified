@@ -1,4 +1,4 @@
-run_name: With powerchords + more freqs
+run_name: With powerchords + more freqs (TRUE!)
 #run_name: NoLatent_Reverb_ConfFiltered
 #run_name: NoLatent_Reverb_Normalized
 # Leave empty for not using wandb
@@ -34,7 +34,7 @@ model:
   # leave empty for auto
   path: D:\home\sergey\infinite_album\guitar_synth\ddsp_simplified\ddsp_simplified\wandb\run-20210916_205314-3g5tpdkn\files\no_LR_decay_GPU\best_model\model.ckpt
   dir:
-  additional_harmonic_needed: False
+  additional_harmonic_needed: True
 loss:
   type: spectral
   logmag_weight: 1.0

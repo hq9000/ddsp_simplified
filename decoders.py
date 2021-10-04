@@ -94,6 +94,7 @@ class DecoderWithoutLatent(tfkl.Layer):
         if harmonic_out_additional is not None:
             res[HARMONIC_OUT_ADDITIONAL] = self.resample(harmonic_out_additional)
 
+        return res
     
     def resample(self, x):
         x = at_least_3d(x)
