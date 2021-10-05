@@ -1,7 +1,7 @@
 import os
 from os import listdir
 from os.path import join, isfile
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 import numpy as np
 
@@ -58,20 +58,36 @@ class CustomWandbCallback(Callback):
                     config=config)
 
         self._config: Dict = config
-
+        self._best_val_spec_loss: Optional[float] = None
         self.wandb_run_dir = wandb.run.dir
         
     def on_epoch_end(self, epoch, logs=None):
 
         data_to_log = dict(logs)
+        val_spec_loss = logs['val_spec_loss']
 
         if epoch % 100 == 0:
+            print("rendering audios on the latest model. val_spec_loss = " + str(val_spec_loss))
             audios = self._generate_audios(self.model, self._config)
-            data_to_log["audio_examples"] = {}
+            audio_examples_data_key = "audio_examples"
 
+            data_to_log[audio_examples_data_key] = {}
             for file_name, audio in audios.items():
-                data_to_log["audio_examples"][file_name] = wandb.Audio(audio * 0.4, caption=file_name,
-                                                                       sample_rate=self._config[DATA][SAMPLE_RATE])
+                data_to_log[audio_examples_data_key][file_name] = wandb.Audio(audio * 0.4, caption=file_name,
+                                                                              sample_rate=self._config[DATA][
+                                                                                  SAMPLE_RATE])
+
+        if self._best_val_spec_loss is None or val_spec_loss < self._best_val_spec_loss:
+            print("best-so-far val loss achieved, rendering best audios. val_spec_loss = " + str(val_spec_loss))
+            audios = self._generate_audios(self.model, self._config)
+            self._best_val_spec_loss = val_spec_loss
+            best_audio_examples_data_key = "best_audio_examples"
+            data_to_log[best_audio_examples_data_key] = {}
+            for file_name, audio in audios.items():
+                data_to_log[best_audio_examples_data_key][file_name] = \
+                    wandb.Audio(audio * 0.4, caption=file_name,
+                                sample_rate=self._config[DATA][
+                                    SAMPLE_RATE])
 
         wandb.log(data_to_log)
 
