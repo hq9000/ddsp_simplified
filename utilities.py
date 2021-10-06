@@ -89,7 +89,7 @@ def get_raw_midi_features_from_file(
         path_to_midi_file: str,
         frame_rate: int,
         audio_length_seconds: float,
-        only_these_features: Optional[List[str]] = None) -> Dict[str, np.ndarray]:
+        only_these_features: Optional[List[str]] = None) -> Optional[Dict[str, np.ndarray]]:
     """
     Load a midi file amd return a dictionary of certain raw midi features.
 
@@ -118,7 +118,8 @@ def get_raw_midi_features_from_file(
         midi_file_name=path_to_midi_file,
         frame_rate=frame_rate,
         audio_length_seconds=audio_length_seconds,
-        only_these_features=only_these_features
+        only_these_features=only_these_features,
+        raise_on_failure=True
     )
 
 def write_audio(audio, output_path, sample_rate=16000, normalize=False):

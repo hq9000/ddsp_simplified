@@ -9,7 +9,6 @@ from feature_names import MIDI_FEATURE_CC_PREFIX, MIDI_FEATURE_VELOCITY, MIDI_FE
 
 
 class MidiLoader:
-
     DISTANCE_TYPE_FROM_ONSET = 'from_onset'
     DISTANCE_TYPE_TO_OFFSET = 'to_offset'
 
@@ -17,7 +16,11 @@ class MidiLoader:
              midi_file_name: str,
              frame_rate: int,
              audio_length_seconds: float,
-             only_these_features: List[str] = None) -> Optional[Dict[str, np.ndarray]]:
+             only_these_features: List[str] = None,
+             raise_on_failure: bool = False) -> Optional[Dict[str, np.ndarray]]:
+
+        if raise_on_failure:
+            return self._load_without_catching(midi_file_name, frame_rate, audio_length_seconds, only_these_features)
 
         try:
             return self._load_without_catching(midi_file_name, frame_rate, audio_length_seconds, only_these_features)
@@ -26,10 +29,10 @@ class MidiLoader:
             return None
 
     def _load_without_catching(self,
-             midi_file_name: str,
-             frame_rate: int,
-             audio_length_seconds: float,
-             only_these_features: List[str] = None) -> Dict[str, np.ndarray]:
+                               midi_file_name: str,
+                               frame_rate: int,
+                               audio_length_seconds: float,
+                               only_these_features: List[str] = None) -> Dict[str, np.ndarray]:
         midi_data = pretty_midi.PrettyMIDI(midi_file_name)
 
         instruments: List[Instrument] = midi_data.instruments
@@ -54,7 +57,8 @@ class MidiLoader:
 
         if time_of_last_midi_event > audio_length_seconds:
             raise InvalidMidiFileException(
-                f"time of last event in midi: {time_of_last_midi_event} overshoots the end of the audio: {audio_length_seconds}")
+                f"time of last event in midi: {time_of_last_midi_event} overshoots the"
+                f" end of the audio: {audio_length_seconds}")
 
         res: Dict[str, np.ndarray] = {}
 
@@ -73,15 +77,17 @@ class MidiLoader:
         def get_velocity(note: Note) -> np.float32:
             return np.float32(note.velocity)
 
-        res[MIDI_FEATURE_VELOCITY] = self._generate_single_value_data_for_notes(instrument=instrument,
-                                                                                frame_rate=frame_rate,
-                                                                                audio_length_seconds=audio_length_seconds,
-                                                                                get_single_feature_value_from_note_func=get_velocity)
+        res[MIDI_FEATURE_VELOCITY] = self._generate_single_value_data_for_notes(
+            instrument=instrument,
+            frame_rate=frame_rate,
+            audio_length_seconds=audio_length_seconds,
+            get_single_feature_value_from_note_func=get_velocity)
 
-        res[MIDI_FEATURE_PITCH] = self._generate_single_value_data_for_notes(instrument=instrument,
-                                                                             frame_rate=frame_rate,
-                                                                             audio_length_seconds=audio_length_seconds,
-                                                                             get_single_feature_value_from_note_func=get_pitch)
+        res[MIDI_FEATURE_PITCH] = self._generate_single_value_data_for_notes(
+            instrument=instrument,
+            frame_rate=frame_rate,
+            audio_length_seconds=audio_length_seconds,
+            get_single_feature_value_from_note_func=get_pitch)
 
         res[MIDI_FEATURE_DISTANCE_FROM_ONSET] = self._generate_distance_data(
             instrument,
@@ -211,10 +217,11 @@ class MidiLoader:
 
         return res
 
-    def _add_default_value_for_missing_feature(self, missing_required_feature: str, res: Dict[str, np.ndarray], value: float):
+    def _add_default_value_for_missing_feature(self, missing_required_feature: str, res: Dict[str, np.ndarray],
+                                               value: float):
         size = list(res.values())[0].shape[0]
         res[missing_required_feature] = np.full((size,), value, dtype=np.float32)
 
 
-class InvalidMidiFileException (Exception):
+class InvalidMidiFileException(Exception):
     pass

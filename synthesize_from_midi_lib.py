@@ -22,7 +22,8 @@ def synthesize_audio_by_midi(
         midi_file_name=path_to_midi_file,
         frame_rate=frame_rate,
         audio_length_seconds=length_of_audio_seconds,
-        only_these_features=midi_feature_names)
+        only_these_features=midi_feature_names,
+        raise_on_failure=False)
 
     if midi_features is None:
         return None

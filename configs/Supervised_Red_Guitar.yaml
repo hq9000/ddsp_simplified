@@ -1,4 +1,4 @@
-run_name: With powerchords + more freqs (TRUE!)
+run_name: With powerchords, gated eqed midi adjusted
 #run_name: NoLatent_Reverb_ConfFiltered
 #run_name: NoLatent_Reverb_Normalized
 # Leave empty for not using wandb
@@ -6,7 +6,7 @@ wandb:
   project_name: Red_Guitar
 data:
   instrument: Violin
-  path: D:\home\sergey\infinite_album\guitar_synth\ddsp_simplified\ddsp_simplified\audio_clips\Red_Guitar_with_powerchords
+  path: D:\home\sergey\infinite_album\guitar_synth\ddsp_simplified\ddsp_simplified\audio_clips\Red_Guitar_powerchords_gated_eqed_midi_adjusted
   # Frame rate at the encoder
   preprocessing_time: 250
   sample_rate: 16000
