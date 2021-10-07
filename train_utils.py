@@ -1,10 +1,13 @@
 import os
+import pathlib
 from typing import Dict
 
+import keras.callbacks
 from tensorflow.keras.optimizers import Adam
-from tensorflow.keras.optimizers.schedules import ExponentialDecay 
+from tensorflow.keras.optimizers.schedules import ExponentialDecay
 
-from preprocessing import F0LoudnessPreprocessor, LoudnessPreprocessor
+from config_key_constants import MODEL, ADDITIONAL_HARMONIC_NEEDED
+from preprocessing import F0LoudnessAndMidiFeaturesPreprocessor, LoudnessPreprocessor
 from encoders import SupervisedEncoder, UnsupervisedEncoder
 from models import SupervisedAutoencoder, UnsupervisedAutoencoder
 from decoders import DecoderWithoutLatent, DecoderWithLatent
@@ -43,30 +46,49 @@ def make_unsupervised_model(config):
                                 add_reverb=config['model']['reverb'])
     return model
 
-def make_supervised_model(config):
+
+def make_supervised_model(config) -> SupervisedAutoencoder:
     """Creates the necessary components of a supervised ddsp using the config."""
-    preprocessor = F0LoudnessPreprocessor(timesteps=config['data']['preprocessing_time'])
+    preprocessor = F0LoudnessAndMidiFeaturesPreprocessor(timesteps=config['data']['preprocessing_time'])
+
+    additional_harmonic_needed = False
+    if ADDITIONAL_HARMONIC_NEEDED in config[MODEL]:
+        additional_harmonic_needed = additional_harmonic_needed = config[MODEL][ADDITIONAL_HARMONIC_NEEDED]
+
     if config['model']['encoder']:
         encoder = SupervisedEncoder()
         decoder = DecoderWithLatent(timesteps=config['model']['decoder_time'])
     else:
         encoder = None
-        decoder = DecoderWithoutLatent(timesteps=config['model']['decoder_time'])
+        decoder = DecoderWithoutLatent(timesteps=config['model']['decoder_time'],
+                                       midi_features=config['data']['midi_features'],
+                                       additional_harmonic_needed=additional_harmonic_needed)
+
     loss = SpectralLoss(logmag_weight=config['loss']['logmag_weight'])
+
     model = SupervisedAutoencoder(preprocessor=preprocessor,
                                 encoder=encoder,
                                 decoder=decoder,
                                 loss_fn=loss,
                                 tracker_names=['spec_loss'],
-                                add_reverb=config['model']['reverb'])
+                                add_reverb=config['model']['reverb'],
+                                additional_harmonic_needed=additional_harmonic_needed)
     return model
 
 # -------------------------------------- Optimizer -------------------------------------------------
 
-def make_optimizer(config):
-    optimizer = Adam(learning_rate=ExponentialDecay(config['optimizer']['lr'],
-                                decay_steps=config['optimizer']['decay_steps'],
-                                decay_rate=config['optimizer']['decay_rate']))    
+
+def make_optimizer(config) -> Adam:
+
+    if 'decay_steps' in config['optimizer']:
+        learning_rate = ExponentialDecay(initial_learning_rate=config['optimizer']['lr'],
+                                         decay_steps=config['optimizer']['decay_steps'],
+                                         decay_rate=config['optimizer']['decay_rate'])
+    else:
+        learning_rate = config['optimizer']['lr']
+
+    optimizer = Adam(learning_rate=learning_rate)
+
     return optimizer                                    
 
 # -------------------------------------- Callbacks -------------------------------------------------
@@ -84,15 +106,17 @@ def create_callbacks(config, monitor):
         if not config['wandb']: # define a save_dir
             model_dir = "model_checkpoints/{}".format(config['run_name'])
             callbacks = [ModelCheckpoint(save_dir=model_dir, monitor=monitor)]
-        else: # save to wandb.run.dir
+        else:  # save to wandb.run.dir
+            log_dir = str(pathlib.Path(__file__).parent.resolve()) + '/tensorboard'
+            tensorboard_callback = keras.callbacks.TensorBoard(log_dir)
             wandb_callback = CustomWandbCallback(config)
             model_dir = os.path.join(wandb_callback.wandb_run_dir, config['run_name'])
             callbacks = [ModelCheckpoint(save_dir=model_dir, monitor=monitor),
-                        wandb_callback]
+                         wandb_callback,
+                         tensorboard_callback]
     return callbacks
 
 # -------------------------------------- Datasets -------------------------------------------------      
-
 def make_supervised_dataset_from_config(config: Dict):
     try: # deal with no mfcc_nfft control versions 
         mfcc_nfft = config['data']['mfcc_nfft']

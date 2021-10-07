@@ -1,7 +1,11 @@
+from typing import Dict
+
 import tensorflow as tf
 from tensorflow.keras import layers as tfkl
 
+from decoders import HARMONIC_OUT, AMP_OUT
 from dsp_utils import core
+from misc_constants import AUDIO_SYNTH
 
 
 class HarmonicSynthesizer(tfkl.Layer):
@@ -11,7 +15,8 @@ class HarmonicSynthesizer(tfkl.Layer):
                scale_fn=core.exp_sigmoid,
                normalize_below_nyquist=True,
                amp_resample_method='window',
-               name='harmonic'):
+               name='harmonic',
+               f0_ratio: float = 1.0):
 
         super().__init__(name=name)
         self.n_samples = n_samples
@@ -19,12 +24,13 @@ class HarmonicSynthesizer(tfkl.Layer):
         self.scale_fn = scale_fn
         self.normalize_below_nyquist = normalize_below_nyquist
         self.amp_resample_method = amp_resample_method
+        self.f0_ratio: float = f0_ratio
 
-    def call(self, inputs):
+    def call(self, inputs, harmonic_out_name: str):
         # get inputs
-        amplitudes = inputs["amp_out"]
-        harmonic_distribution = inputs["harmonic_out"]
-        f0_hz = inputs["f0_hz"]
+        amplitudes = inputs[AMP_OUT]
+        harmonic_distribution = inputs[harmonic_out_name]
+        f0_hz = inputs["f0_hz"] * self.f0_ratio
         
         # Scale the amplitudes for training
         if self.scale_fn is not None:
@@ -101,8 +107,8 @@ class Reverb(tfkl.Layer):
         self.ir = tf.Variable(initial_value=initializer(shape=[self.reverb_length-1], dtype='float32'), trainable=True, name="ir")
         self.build = True
 
-    def call(self, inputs):
-        audio = inputs["audio_synth"]
+    def call(self, inputs: Dict):
+        audio = inputs[AUDIO_SYNTH]
         batch_size = int(tf.shape(audio)[0])
         
         ir = tf.repeat(self.ir[tf.newaxis,:], batch_size, axis=0)

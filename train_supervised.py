@@ -1,5 +1,6 @@
 import os, argparse, yaml
 
+from ddsp_simplified.config_key_constants import TRAINING, PATH_FOR_WEIGHTS_PRELOADING
 from train_utils import make_supervised_model, create_callbacks, make_optimizer, make_supervised_dataset_from_config
 
 if __name__ == '__main__':
@@ -18,6 +19,12 @@ if __name__ == '__main__':
     
     # Create the entire model and define the training 
     model = make_supervised_model(config)
+
+    if PATH_FOR_WEIGHTS_PRELOADING in config[TRAINING]:
+        path_for_preloading = config[TRAINING][PATH_FOR_WEIGHTS_PRELOADING]
+        if path_for_preloading is not None:
+            model.load_weights(path_for_preloading)
+
     optimizer = make_optimizer(config)
 
     # Plan the Model Saving and Experiment Tracking

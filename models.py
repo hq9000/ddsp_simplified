@@ -1,31 +1,51 @@
-import tensorflow as tf
+from abc import abstractmethod, ABC
+from typing import Optional, List
+
 from tensorflow.keras.models import Model
 from tensorflow.keras import metrics as tfkm
 
+from decoders import HARMONIC_OUT_ADDITIONAL
 from synthesizers import *
 
 
-class Autoencoder(Model):
+class Autoencoder(Model, ABC):
     def __init__(self,
                preprocessor=None,
                add_reverb=False,
                loss_fn=None,
                n_samples=64000,
                sample_rate=16000,
-               tracker_names=["spec_loss"],
-               metric_fns={},
+               tracker_names: Optional[List] = None,
+               metric_fns: Optional[Dict] = None,
+               additional_harmonic_needed: bool = False,
                **kwargs):
-        
+
+        if tracker_names is None:
+            tracker_names = ["spec_loss"]
+
+        if metric_fns is None:
+            metric_fns = {}
+
         super().__init__(**kwargs)
         self.preprocessor = preprocessor
         self.n_samples = n_samples
         self.sample_rate = sample_rate
         self.loss_fn = loss_fn
-        
-        self.harmonic = HarmonicSynthesizer(n_samples=self.n_samples, 
-                                    sample_rate=self.sample_rate,
-                                    name='harmonic')
-        
+
+        self.harmonic: HarmonicSynthesizer = HarmonicSynthesizer(n_samples=self.n_samples,
+                                            sample_rate=self.sample_rate,
+                                            name='harmonic',
+                                            f0_ratio=1.0)
+
+        self.harmonic_additional: Optional[HarmonicSynthesizer] = None
+
+        if additional_harmonic_needed:
+            self.harmonic_additional = HarmonicSynthesizer(
+                n_samples=self.n_samples,
+                sample_rate=self.sample_rate,
+                name='harmonic_additional',
+                f0_ratio=1.5)
+
         self.noise = FilteredNoiseSynthesizer(window_size=0,
                                       initial_bias=-10.0,
                                       name='noise')
@@ -35,22 +55,39 @@ class Autoencoder(Model):
             self.reverb = Reverb(reverb_length=n_samples)
         self.trackers = TrackerGroup(*tracker_names)
         self.metric_fns = metric_fns
-            
+
+    @abstractmethod
     def encode(self, features):
         raise NotImplementedError
-    
+
+    @abstractmethod
     def decode(self, features):
         raise NotImplementedError
     
     def dsp_process(self, features):
         """Synthesizes audio and adds reverb if specified."""
 
-        features["harmonic"] = self.harmonic(features) # synthesizes from f0_hz        
-        features["noise"] = self.noise(features)
-        outputs = {"inputs": features}
-        outputs["audio_synth"] = features["harmonic"] + features["noise"]
+        feature_key_harmonic = "harmonic"
+        feature_key_harmonic_additional = "harmonic_additional"
+        feature_key_noise = "noise"
+
+        features[feature_key_harmonic] = self.harmonic(features, HARMONIC_OUT)
+
+        if self.harmonic_additional is not None:
+            features[feature_key_harmonic_additional] = self.harmonic_additional(features,
+                                                                                 HARMONIC_OUT_ADDITIONAL)
+
+        features[feature_key_noise] = self.noise(features)
+        outputs = {
+            "inputs": features,
+            AUDIO_SYNTH: features[feature_key_harmonic] + features[feature_key_noise]
+        }
+
+        if self.harmonic_additional is not None:
+            outputs[AUDIO_SYNTH] = outputs[AUDIO_SYNTH] + features[feature_key_harmonic_additional]
+
         if self.add_reverb:
-            outputs["audio_synth"] = self.reverb(outputs)            
+            outputs[AUDIO_SYNTH] = self.reverb(outputs)
         return outputs
 
     # code from github repo, kept it but unnecessary
@@ -64,7 +101,7 @@ class Autoencoder(Model):
         return audio_synth.numpy().reshape(-1)    
 
     # is copying necessary?
-    #def call(self, features):
+    #ll(self, features):
     #    _features = features.copy()
     #    _features = self.encode(_features)
     #    _features = self.decode(_features)
@@ -83,7 +120,7 @@ class Autoencoder(Model):
 
         with tf.GradientTape() as tape:
             x_pred = self(x, training=True)
-            loss = self.loss_fn({'audio': x_pred["audio_synth"] , 'target_audio':x["audio"]})
+            loss = self.loss_fn({'audio': x_pred[AUDIO_SYNTH], 'target_audio':x["audio"]})
             total_loss = loss["total_loss"] if "total_loss" in loss else loss["spec_loss"]
         trainable_vars = self.trainable_variables
         gradients = tape.gradient(total_loss, trainable_vars)      
@@ -96,7 +133,7 @@ class Autoencoder(Model):
     @tf.function
     def test_step(self, x):
         x_pred = self(x,training=False)
-        loss = self.loss_fn({'audio': x_pred["audio_synth"] , 'target_audio':x["audio"]})
+        loss = self.loss_fn({'audio': x_pred[AUDIO_SYNTH], 'target_audio':x["audio"]})
         metrics = {name:fn(x, x_pred) for name, fn in self.metric_fns.items()}
         self.trackers.update_state(loss)
         self.trackers.update_state(metrics)
@@ -117,17 +154,19 @@ class SupervisedAutoencoder(Autoencoder):
                sample_rate=16000,
                tracker_names=["spec_loss"],
                metric_fns={},
+               additional_harmonic_needed: bool = False,
                **kwargs):
         
         super().__init__(preprocessor, add_reverb, loss_fn, n_samples, sample_rate,
-                        tracker_names=tracker_names, metric_fns=metric_fns, **kwargs)
+                         tracker_names=tracker_names, metric_fns=metric_fns, **kwargs,
+                         additional_harmonic_needed=additional_harmonic_needed)
         self.encoder = encoder
         self.decoder = decoder
 
     def encode(self, features): 
         """Loudness and F0 is read. z is encoded optionally."""
-        
-        if self.preprocessor is not None: # Downsample and Scale the features
+
+        if self.preprocessor is not None:  # Downsample and Scale the features
             processed_features = self.preprocessor(features)
             features.update(processed_features)
         if self.encoder is not None:
@@ -138,7 +177,7 @@ class SupervisedAutoencoder(Autoencoder):
     def decode(self, features):
         """Map the f,l (,z) parameters to synthesizer parameters."""
         
-        outputs = self.decoder(features)       
+        outputs = self.decoder(features)
         features.update(outputs)
         return features
      

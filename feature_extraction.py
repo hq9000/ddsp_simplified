@@ -1,6 +1,11 @@
+from typing import List, Dict
+
 import numpy as np
 
+from ddsp_simplified.utils.heuristic_audio_features_generator import HeuristicAudioFeaturesGenerator
 from dsp_utils.spectral_ops import compute_loudness, compute_f0, compute_mfcc, compute_logmel
+from feature_names import INPUT_FEATURE_LOUDNESS_DB, INPUT_FEATURE_F0_HZ, INPUT_FEATURE_MFCC, INPUT_FEATURE_LOG_MEL
+from misc_constants import AUDIO_SYNTH
 
 from utilities import concat_dct, frame_generator
 
@@ -20,19 +25,19 @@ def feature_extractor(audio, sample_rate=16000, model=None, frame_rate=250,
     if f0:
         f0, confidence = compute_f0(audio, sample_rate, frame_rate, viterbi=True) 
         f0 = confidence_filter(f0, confidence, conf_threshold)
-        features['f0_hz'] = f0
+        features[INPUT_FEATURE_F0_HZ] = f0
 
     if mfcc:
         # overlap and fft_size taken from the code
         # overlap is the same except for frame size 63
-        features['mfcc'] = compute_mfcc(audio,
+        features[INPUT_FEATURE_MFCC] = compute_mfcc(audio,
                                         fft_size=mfcc_nfft,
                                         overlap=0.75,
                                         mel_bins=128,
                                         mfcc_bins=30)
 
     if log_mel:
-        features['log_mel'] = compute_logmel(audio,
+        features[INPUT_FEATURE_LOG_MEL] = compute_logmel(audio,
                                             bins=229, #64
                                             fft_size=logmel_nfft,
                                             overlap=0.75,
@@ -43,9 +48,9 @@ def feature_extractor(audio, sample_rate=16000, model=None, frame_rate=250,
         # apply reverb before l extraction to match
         # room acoustics for timbre transfer
         if model is not None and model.add_reverb: 
-            audio = model.reverb({"audio_synth":audio[np.newaxis,:]})[0]
+            audio = model.reverb({AUDIO_SYNTH: audio[np.newaxis,:]})[0]
 
-        features['loudness_db'] = compute_loudness(audio,
+        features[INPUT_FEATURE_LOUDNESS_DB] = compute_loudness(audio,
                                                     sample_rate=sample_rate,
                                                     frame_rate=frame_rate,
                                                     n_fft=l_nfft,
@@ -54,7 +59,27 @@ def feature_extractor(audio, sample_rate=16000, model=None, frame_rate=250,
 
 def extract_features_from_frames(frames, **kwargs):
     """Extracts features from multiple frames and concatenates them."""
-    return concat_dct([feature_extractor(frame, **kwargs) for frame in frames])    
+    return concat_dct([feature_extractor(frame, **kwargs) for frame in frames])
+
+
+def extract_features_from_audio_frames_using_heuristic_generator(
+        audio_frames: List[np.ndarray],
+        midi_frames: Dict[str, np.ndarray]
+) -> Dict[str, np.ndarray]:
+    generator = HeuristicAudioFeaturesGenerator()
+
+    res = []
+
+    for (audio_frame, midi_frame) in zip(audio_frames, midi_frames):
+        heuristic_audio_features = generator.generate(midi_frame['midi'])
+        res.append({
+            'audio': audio_frame,
+            INPUT_FEATURE_F0_HZ: heuristic_audio_features[INPUT_FEATURE_F0_HZ],
+            INPUT_FEATURE_LOUDNESS_DB: heuristic_audio_features[INPUT_FEATURE_LOUDNESS_DB]
+        })
+
+    return concat_dct(res)
+
 
 def process_track(track, sample_rate=16000, audio_length=60, frame_size=64000, **kwargs):
     """Generates frames from a track and extracts features for each frame."""

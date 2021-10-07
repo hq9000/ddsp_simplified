@@ -1,17 +1,38 @@
-from typing import List, Dict, Callable
+from typing import List, Dict, Callable, Optional
 
 import numpy as np
 import pretty_midi
 from pretty_midi import Instrument, ControlChange, Note
 
+from feature_names import MIDI_FEATURE_CC_PREFIX, MIDI_FEATURE_VELOCITY, MIDI_FEATURE_PITCH, \
+    MIDI_FEATURE_DISTANCE_FROM_ONSET, MIDI_FEATURE_DISTANCE_TO_OFFSET
+
 
 class MidiLoader:
-    FEATURE_VELOCITY = 'velocity'
-    FEATURE_PITCH = 'pitch'
-    FEATURE_CC_PREFIX = 'cc_'
-    FEATURE_DISTANCE_FROM_ONSET = 'distance_from_onset'
+    DISTANCE_TYPE_FROM_ONSET = 'from_onset'
+    DISTANCE_TYPE_TO_OFFSET = 'to_offset'
 
-    def load(self, midi_file_name: str, frame_rate: int, audio_length_seconds: float):
+    def load(self,
+             midi_file_name: str,
+             frame_rate: int,
+             audio_length_seconds: float,
+             only_these_features: List[str] = None,
+             raise_on_failure: bool = False) -> Optional[Dict[str, np.ndarray]]:
+
+        if raise_on_failure:
+            return self._load_without_catching(midi_file_name, frame_rate, audio_length_seconds, only_these_features)
+
+        try:
+            return self._load_without_catching(midi_file_name, frame_rate, audio_length_seconds, only_these_features)
+        except InvalidMidiFileException:
+            print('invalid midi file faced: ' + midi_file_name)
+            return None
+
+    def _load_without_catching(self,
+                               midi_file_name: str,
+                               frame_rate: int,
+                               audio_length_seconds: float,
+                               only_these_features: List[str] = None) -> Dict[str, np.ndarray]:
         midi_data = pretty_midi.PrettyMIDI(midi_file_name)
 
         instruments: List[Instrument] = midi_data.instruments
@@ -20,18 +41,24 @@ class MidiLoader:
             raise Exception("only midi files with exactly one instrument are supported " +
                             f"{midi_file_name} has {len(instruments)}")
 
-        return self._load_instrument(instruments[0], audio_length_seconds, frame_rate)
+        return self._load_instrument(
+            instrument=instruments[0],
+            audio_length_seconds=audio_length_seconds,
+            frame_rate=frame_rate,
+            only_these_features=only_these_features)
 
     def _load_instrument(self,
                          instrument: Instrument,
                          audio_length_seconds: float,
-                         frame_rate: int) -> Dict[str, np.ndarray]:
+                         frame_rate: int,
+                         only_these_features: Optional[List[str]] = None) -> Dict[str, np.ndarray]:
 
         time_of_last_midi_event = instrument.get_end_time()
 
         if time_of_last_midi_event > audio_length_seconds:
-            raise Exception(
-                f"time of last event in midi: {time_of_last_midi_event} overshoots the end of the audio: {audio_length_seconds}")
+            raise InvalidMidiFileException(
+                f"time of last event in midi: {time_of_last_midi_event} overshoots the"
+                f" end of the audio: {audio_length_seconds}")
 
         res: Dict[str, np.ndarray] = {}
 
@@ -42,7 +69,7 @@ class MidiLoader:
             control_number: int
             data_for_one_cc = self._generate_data_for_one_cc(audio_length_seconds, frame_rate,
                                                              control_changes_by_cc_number[control_number])
-            res[MidiLoader.FEATURE_CC_PREFIX + str(control_number)] = data_for_one_cc
+            res[MIDI_FEATURE_CC_PREFIX + str(control_number)] = data_for_one_cc
 
         def get_pitch(note: Note) -> np.float32:
             return np.float32(note.pitch)
@@ -50,21 +77,45 @@ class MidiLoader:
         def get_velocity(note: Note) -> np.float32:
             return np.float32(note.velocity)
 
-        res[self.FEATURE_VELOCITY] = self._generate_single_value_data_for_notes(instrument=instrument,
-                                                                                frame_rate=frame_rate,
-                                                                                audio_length_seconds=audio_length_seconds,
-                                                                                get_single_feature_value_from_note_func=get_velocity)
+        res[MIDI_FEATURE_VELOCITY] = self._generate_single_value_data_for_notes(
+            instrument=instrument,
+            frame_rate=frame_rate,
+            audio_length_seconds=audio_length_seconds,
+            get_single_feature_value_from_note_func=get_velocity)
 
-        res[self.FEATURE_PITCH] = self._generate_single_value_data_for_notes(instrument=instrument,
-                                                                             frame_rate=frame_rate,
-                                                                             audio_length_seconds=audio_length_seconds,
-                                                                             get_single_feature_value_from_note_func=get_pitch)
+        res[MIDI_FEATURE_PITCH] = self._generate_single_value_data_for_notes(
+            instrument=instrument,
+            frame_rate=frame_rate,
+            audio_length_seconds=audio_length_seconds,
+            get_single_feature_value_from_note_func=get_pitch)
 
-        res[self.FEATURE_DISTANCE_FROM_ONSET] = self._generate_distance_from_onset_data(
+        res[MIDI_FEATURE_DISTANCE_FROM_ONSET] = self._generate_distance_data(
             instrument,
             frame_rate,
-            audio_length_seconds
+            audio_length_seconds,
+            self.DISTANCE_TYPE_FROM_ONSET
         )
+
+        res[MIDI_FEATURE_DISTANCE_TO_OFFSET] = self._generate_distance_data(
+            instrument,
+            frame_rate,
+            audio_length_seconds,
+            self.DISTANCE_TYPE_TO_OFFSET
+        )
+
+        for required_feature in only_these_features:
+            if required_feature not in res:
+                # currently default is "1"
+                # and what can be missing is certain CC we just
+                # added and therefore it does not exist in previously
+                # created test midis
+                self._add_default_value_for_missing_feature(required_feature, res, 1)
+
+        if only_these_features is not None:
+            filtered_res = {}
+            for feature_name in only_these_features:
+                filtered_res[feature_name] = res[feature_name]
+            res = filtered_res
 
         return res
 
@@ -131,7 +182,13 @@ class MidiLoader:
 
         return res
 
-    def _generate_distance_from_onset_data(self, instrument: Instrument, frame_rate: int, audio_length_seconds: float):
+    def _generate_distance_data(
+            self,
+            instrument: Instrument,
+            frame_rate: int,
+            audio_length_seconds: float,
+            distance_type: str
+    ):
         """
         Generate data of "distance from onset" feature
         """
@@ -144,8 +201,27 @@ class MidiLoader:
             start_idx = int(note.start * frame_rate)
             end_idx = int(note.end * frame_rate)
 
-            final_value = note.end - note.start
-            patch = np.linspace(0, final_value, num=end_idx - start_idx, dtype=np.float32)
+            note_length_seconds = note.end - note.start
+
+            if distance_type == self.DISTANCE_TYPE_FROM_ONSET:
+                patch_start_value = 0
+                patch_end_value = note_length_seconds
+            elif distance_type == self.DISTANCE_TYPE_TO_OFFSET:
+                patch_start_value = note_length_seconds
+                patch_end_value = 0
+            else:
+                raise Exception("unsupported distance type " + distance_type)
+
+            patch = np.linspace(patch_start_value, patch_end_value, num=end_idx - start_idx, dtype=np.float32)
             res[start_idx:end_idx] = patch
 
         return res
+
+    def _add_default_value_for_missing_feature(self, missing_required_feature: str, res: Dict[str, np.ndarray],
+                                               value: float):
+        size = list(res.values())[0].shape[0]
+        res[missing_required_feature] = np.full((size,), value, dtype=np.float32)
+
+
+class InvalidMidiFileException(Exception):
+    pass

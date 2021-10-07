@@ -1,0 +1,50 @@
+run_name: without 56, without powerchords + DTOffset!
+#run_name: NoLatent_Reverb_ConfFiltered
+#run_name: NoLatent_Reverb_Normalized
+# Leave empty for not using wandb
+wandb:
+  project_name: Red_Guitar
+data:
+  instrument: Violin
+  path: D:\home\sergey\infinite_album\guitar_synth\ddsp_simplified\ddsp_simplified\audio_clips\Red_Guitar
+  # Frame rate at the encoder
+  preprocessing_time: 250
+  sample_rate: 16000
+  frame_rate: 250
+  # confidence threshold level for f0
+  # put 0.0 for not using
+  confidence_threshold: 0.0
+  # Apply audio normalization
+  normalize: False
+  midi_features:
+    - cc_55
+    - distance_from_onset
+    - distance_to_offset
+
+model:
+  type: Supervised
+  # Frame rate at the decoder
+  decoder_time: 1000
+  # Use the z encoder or not
+  encoder: False
+  # Whether to use the reverb module
+  reverb: True
+  # Directory to save the model in
+  # leave empty for auto
+  path: D:\home\sergey\infinite_album\guitar_synth\ddsp_simplified\ddsp_simplified\wandb\run-20210916_205314-3g5tpdkn\files\no_LR_decay_GPU\best_model\model.ckpt
+  dir:  
+loss:
+  type: spectral
+  logmag_weight: 1.0
+optimizer:
+  name: Adam
+  decay_rate: 0.98
+  decay_steps: 10000
+  lr: 0.001
+training:
+  batch_size: 12
+  epochs: 30000
+  # path_for_weights_preloading: D:\home\sergey\infinite_album\guitar_synth\ddsp_simplified\ddsp_simplified\wandb\run-20210916_210018-120vb8zq\files\no_LR_decay_GPU_bs8_1000\best_model\model.ckpt
+inference:
+  saved_model_path: D:\home\sergey\infinite_album\guitar_synth\ddsp_simplified\ddsp_simplified\wandb\run-20210916_210018-120vb8zq\files\no_LR_decay_GPU_bs8_1000\best_model\model.ckpt
+  example_midi_files_dir: D:\home\sergey\infinite_album\guitar_synth\ddsp_simplified\ddsp_simplified\test_midis\
