@@ -1,12 +1,13 @@
 import glob
 import os.path
-from typing import Dict, Optional, List
+from typing import Dict, Optional, List, Tuple
 
 import numpy as np
 
 from tensorflow.data import Dataset
 import tensorflow_datasets as tfds
 from sklearn.model_selection import train_test_split
+from tensorflow.python.ops.gen_dataset_ops import TensorSliceDataset
 
 from ddsp_simplified.synthesize_from_midi_lib import get_midi_feature_names_augmented_with_pitch_and_velocity
 from ddsp_simplified.utils.heuristic_audio_features_generator import HeuristicAudioFeaturesGenerator
@@ -16,12 +17,19 @@ from utilities import frame_generator, load_track, get_raw_midi_features_from_fi
 
 MIDI_FILE_EXTENSION = 'MID'
 
-def _make_dataset(features, batch_size=32, seed=None):
-    features = Dataset.from_tensor_slices(features)
-    features = features.shuffle(len(features)*2, seed, True) # shuflle at each iteration
-    features = features.batch(batch_size)
-    features = features.prefetch(1) # preftech 1 batch
-    return features
+
+def _augment_example(x):
+    return x
+
+
+def _make_dataset(features: Dict[str, np.ndarray], batch_size: int = 32, seed: str = None) -> TensorSliceDataset:
+    dataset: TensorSliceDataset = Dataset.from_tensor_slices(features)
+    dataset = dataset.shuffle(len(features)*2, seed, True)  # shuffle at each iteration
+    dataset = dataset.batch(batch_size)
+    dataset = dataset.prefetch(1)  # prefetch 1 batch
+    dataset = dataset.map(lambda x: _augment_example(x))
+
+    return dataset
 
 # -------------------------------------------- Supervised Dataset -------------------------------------------------
 
@@ -36,14 +44,13 @@ def _filter_midi_features_data(raw_midi_features_data: Dict[str, np.array], feat
     return {feature_name: raw_midi_features_data[feature_name] for feature_name in feature_names_to_leave}
 
 
-
 def make_supervised_dataset(path, mfcc=False, batch_size=32, sample_rate=16000,
                             normalize=False, conf_threshold=0.0, mfcc_nfft=1024,
                             frame_rate: int = 250,
                             midi_feature_names: Optional[List[str]] = None,
                             empty_list_to_put_train_feature_frames: Optional[List] = None,
                             empty_list_to_put_val_feature_frames: Optional[List] = None
-                            ):
+                            ) -> Tuple[Dataset, Dataset, Optional[Dataset]]:
     """Loads all the mp3 and (optionally) midi files in the path, creates frames and extracts features."""
 
     ordered_audio_frames = []

@@ -16,6 +16,7 @@ PITCH_RANGE = 128
 
 from utilities import at_least_3d
 
+
 class F0LoudnessAndMidiFeaturesPreprocessor(tfkl.Layer):
     """Resamples and scales 'f0_hz' and 'loudness_db' features. Used in the Supervised Setting."""
 
