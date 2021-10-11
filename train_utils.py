@@ -1,6 +1,6 @@
 import os
 import pathlib
-from typing import Dict
+from typing import Dict, Tuple
 
 import keras.callbacks
 from tensorflow.keras.optimizers import Adam
@@ -116,21 +116,24 @@ def create_callbacks(config, monitor):
                          tensorboard_callback]
     return callbacks
 
+
 # -------------------------------------- Datasets -------------------------------------------------      
 def make_supervised_dataset_from_config(config: Dict):
-    try: # deal with no mfcc_nfft control versions 
-        mfcc_nfft = config['data']['mfcc_nfft']
-    except:
-        mfcc_nfft = 1024
+    pitch_shifts = tuple(range(
+        config['data']['augmentation']['pitch_shift']['start'],
+        config['data']['augmentation']['pitch_shift']['end'] + 1,
+    ))
     return make_supervised_dataset(config['data']['path'],
                                 mfcc=config['model']['encoder'],
-                                mfcc_nfft=mfcc_nfft,
+                                mfcc_nfft=config['data'].get('mfcc_nfft', 1024),
                                 batch_size=config['training']['batch_size'],
                                 sample_rate=config['data']['sample_rate'],
                                 normalize=config['data']['normalize'],
                                 conf_threshold=config['data']['confidence_threshold'],
                                 frame_rate=config['data'].get('frame_rate', 250),
-                                midi_feature_names=config['data'].get('midi_features', None))
+                                midi_feature_names=config['data'].get('midi_features', None),
+                                pitch_shifts=pitch_shifts
+                                   )
 
 
 def make_unsupervised_dataset_from_config(config):

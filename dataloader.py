@@ -1,27 +1,30 @@
 import glob
 import os.path
-from typing import Dict, Optional, List
+from typing import Dict, Optional, List, Tuple
 
 import numpy as np
 
 from tensorflow.data import Dataset
 import tensorflow_datasets as tfds
 from sklearn.model_selection import train_test_split
+from tensorflow.python.ops.gen_dataset_ops import TensorSliceDataset
 
 from ddsp_simplified.synthesize_from_midi_lib import get_midi_feature_names_augmented_with_pitch_and_velocity
-from ddsp_simplified.utils.heuristic_audio_features_generator import HeuristicAudioFeaturesGenerator
 from feature_extraction import extract_features_from_frames, feature_extractor, \
     extract_features_from_audio_frames_using_heuristic_generator
+from feature_names import MIDI_FEATURE_PITCH
 from utilities import frame_generator, load_track, get_raw_midi_features_from_file, generate_midi_features_examples, concat_dct
 
 MIDI_FILE_EXTENSION = 'MID'
 
-def _make_dataset(features, batch_size=32, seed=None):
-    features = Dataset.from_tensor_slices(features)
-    features = features.shuffle(len(features)*2, seed, True) # shuflle at each iteration
-    features = features.batch(batch_size)
-    features = features.prefetch(1) # preftech 1 batch
-    return features
+
+def _make_dataset(features: Dict[str, np.ndarray], batch_size: int = 32, seed: str = None) -> TensorSliceDataset:
+    dataset: TensorSliceDataset = Dataset.from_tensor_slices(features)
+    dataset = dataset.shuffle(len(features)*2, seed, True)  # shuffle at each iteration
+    dataset = dataset.batch(batch_size)
+    dataset = dataset.prefetch(1)  # prefetch 1 batch
+
+    return dataset
 
 # -------------------------------------------- Supervised Dataset -------------------------------------------------
 
@@ -36,14 +39,20 @@ def _filter_midi_features_data(raw_midi_features_data: Dict[str, np.array], feat
     return {feature_name: raw_midi_features_data[feature_name] for feature_name in feature_names_to_leave}
 
 
+def _apply_pitch_shift_to_midi_features(midi_features: Dict[str, np.ndarray], pitch_shift: int):
+    pitches = midi_features[MIDI_FEATURE_PITCH]
+    non_zero_indices = pitches > 0.000001
+    pitches[non_zero_indices] = pitches[non_zero_indices] + pitch_shift
+
 
 def make_supervised_dataset(path, mfcc=False, batch_size=32, sample_rate=16000,
                             normalize=False, conf_threshold=0.0, mfcc_nfft=1024,
                             frame_rate: int = 250,
                             midi_feature_names: Optional[List[str]] = None,
                             empty_list_to_put_train_feature_frames: Optional[List] = None,
-                            empty_list_to_put_val_feature_frames: Optional[List] = None
-                            ):
+                            empty_list_to_put_val_feature_frames: Optional[List] = None,
+                            pitch_shifts: Tuple[int, ...] = (0, )
+                            ) -> Tuple[Dataset, Dataset, Optional[Dataset]]:
     """Loads all the mp3 and (optionally) midi files in the path, creates frames and extracts features."""
 
     ordered_audio_frames = []
@@ -58,31 +67,35 @@ def make_supervised_dataset(path, mfcc=False, batch_size=32, sample_rate=16000,
     KEY_MIDI = 'midi'
 
     for audio_file_name in glob.glob(path+'/*.mp3'):
-
-        audio_data = load_track(audio_file_name, sample_rate=sample_rate, normalize=normalize)
-        generated_audio_frames = frame_generator(audio_data, int(length_of_example_seconds * sample_rate))
-        ordered_audio_frames.extend(generated_audio_frames)  # create 4 seconds long frames\
-
-        if need_midi:
-            midi_file_name = guess_midi_file_name_by_audio_file_name(audio_file_name)
-
-            midi_feature_names_with_pitch_and_velocity = get_midi_feature_names_augmented_with_pitch_and_velocity(midi_feature_names)
-
-            raw_midi_features_data_with_pitch_and_velocity = get_raw_midi_features_from_file(
-                path_to_midi_file=midi_file_name,
-                frame_rate=frame_rate,
-                audio_length_seconds=audio_data.shape[0] / sample_rate,
-                only_these_features=midi_feature_names_with_pitch_and_velocity
+        for pitch_shift in pitch_shifts:
+            audio_data = load_track(
+                audio_file_name,
+                sample_rate=sample_rate,
+                normalize=normalize,
+                pitch_shift=pitch_shift
             )
+            generated_audio_frames = frame_generator(audio_data, int(length_of_example_seconds * sample_rate))
+            ordered_audio_frames.extend(generated_audio_frames)  # create 4 seconds long frames
 
-            # raw_midi_features_data = _filter_midi_features_data(raw_midi_features_data_with_pitch_and_velocity,
-            #                                                     midi_feature_names)
+            if need_midi:
+                midi_file_name = guess_midi_file_name_by_audio_file_name(audio_file_name)
 
-            generated_midi_feature_examples = generate_midi_features_examples(
-                raw_midi_features_data_with_pitch_and_velocity,
-                int(length_of_example_seconds * frame_rate)
-            )
-            ordered_midi_features_frames.extend(generated_midi_feature_examples)
+                midi_feature_names_with_pitch_and_velocity = get_midi_feature_names_augmented_with_pitch_and_velocity(midi_feature_names)
+
+                raw_midi_features_data_with_pitch_and_velocity = get_raw_midi_features_from_file(
+                    path_to_midi_file=midi_file_name,
+                    frame_rate=frame_rate,
+                    audio_length_seconds=audio_data.shape[0] / sample_rate,
+                    only_these_features=midi_feature_names_with_pitch_and_velocity
+                )
+
+                _apply_pitch_shift_to_midi_features(raw_midi_features_data_with_pitch_and_velocity, pitch_shift)
+
+                generated_midi_feature_examples = generate_midi_features_examples(
+                    raw_midi_features_data_with_pitch_and_velocity,
+                    int(length_of_example_seconds * frame_rate)
+                )
+                ordered_midi_features_frames.extend(generated_midi_feature_examples)
 
     combined_frames = []
     if need_midi:
