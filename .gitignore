@@ -145,7 +145,7 @@ cython_debug/
 
 # unwanted folders
 wandb/**
-TensorSliceDataset
+Tensorboard
 data/**
 logs/**
 model_checkpoints/**
