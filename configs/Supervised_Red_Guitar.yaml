@@ -1,4 +1,4 @@
-run_name: With powerchords, gated eqed midi adjusted
+run_name: pitch shift -2..2
 #run_name: NoLatent_Reverb_ConfFiltered
 #run_name: NoLatent_Reverb_Normalized
 # Leave empty for not using wandb
@@ -21,6 +21,12 @@ data:
     - cc_56
     - distance_from_onset
     - distance_to_offset
+  augmentation:
+    pitch_shift:
+      start: -2
+      end: 2
+  compression:
+    silence_tail_size_seconds: 0.2
 
 model:
   type: Supervised

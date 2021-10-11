@@ -132,7 +132,8 @@ def make_supervised_dataset_from_config(config: Dict):
                                 conf_threshold=config['data']['confidence_threshold'],
                                 frame_rate=config['data'].get('frame_rate', 250),
                                 midi_feature_names=config['data'].get('midi_features', None),
-                                pitch_shifts=pitch_shifts
+                                pitch_shifts=pitch_shifts,
+                                silence_tail_seconds=config['data']['compression']['silence_tail_size_seconds']
                                    )
 
 

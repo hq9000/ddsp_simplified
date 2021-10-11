@@ -46,15 +46,14 @@ def _apply_pitch_shift_to_midi_features(midi_features: Dict[str, np.ndarray], pi
     pitches[non_zero_indices] = pitches[non_zero_indices] + pitch_shift
 
 
-
-
 def make_supervised_dataset(path, mfcc=False, batch_size=32, sample_rate=16000,
                             normalize=False, conf_threshold=0.0, mfcc_nfft=1024,
                             frame_rate: int = 250,
                             midi_feature_names: Optional[List[str]] = None,
                             empty_list_to_put_train_feature_frames: Optional[List] = None,
                             empty_list_to_put_val_feature_frames: Optional[List] = None,
-                            pitch_shifts: Tuple[int, ...] = (0, )
+                            pitch_shifts: Tuple[int, ...] = (0, ),
+                            silence_tail_seconds: float = 0.2,
                             ) -> Tuple[Dataset, Dataset, Optional[Dataset]]:
     """Loads all the mp3 and (optionally) midi files in the path, creates frames and extracts features."""
 
@@ -97,7 +96,8 @@ def make_supervised_dataset(path, mfcc=False, batch_size=32, sample_rate=16000,
                     audio_data,
                     raw_midi_features_data_with_pitch_and_velocity,
                     frame_rate=frame_rate,
-                    sample_rate=sample_rate
+                    sample_rate=sample_rate,
+                    silence_tail_size_frames=int(silence_tail_seconds * frame_rate)
                 )
 
             _apply_pitch_shift_to_midi_features(compressed_raw_midi_features_data_with_pitch_and_velocity, pitch_shift)
