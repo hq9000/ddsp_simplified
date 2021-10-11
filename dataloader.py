@@ -39,7 +39,7 @@ def _filter_midi_features_data(raw_midi_features_data: Dict[str, np.array], feat
     return {feature_name: raw_midi_features_data[feature_name] for feature_name in feature_names_to_leave}
 
 
-def _apply_pitch_shift_to_midi_features(midi_features: Dict[np.ndarray], pitch_shift: int):
+def _apply_pitch_shift_to_midi_features(midi_features: Dict[str, np.ndarray], pitch_shift: int):
     pitches = midi_features[MIDI_FEATURE_PITCH]
     non_zero_indices = pitches > 0.000001
     pitches[non_zero_indices] = pitches[non_zero_indices] + pitch_shift
@@ -75,7 +75,7 @@ def make_supervised_dataset(path, mfcc=False, batch_size=32, sample_rate=16000,
                 pitch_shift=pitch_shift
             )
             generated_audio_frames = frame_generator(audio_data, int(length_of_example_seconds * sample_rate))
-            ordered_audio_frames.extend(generated_audio_frames)  # create 4 seconds long frames\
+            ordered_audio_frames.extend(generated_audio_frames)  # create 4 seconds long frames
 
             if need_midi:
                 midi_file_name = guess_midi_file_name_by_audio_file_name(audio_file_name)
@@ -164,10 +164,6 @@ def make_supervised_dataset(path, mfcc=False, batch_size=32, sample_rate=16000,
 
     train_dataset = _make_dataset(combined_train_features, batch_size)
     val_dataset = _make_dataset(combined_val_features, batch_size)
-
-
-    for example in train_dataset:
-        print(1123)
 
     return train_dataset, val_dataset, None
 
