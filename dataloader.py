@@ -12,8 +12,9 @@ from tensorflow.python.ops.gen_dataset_ops import TensorSliceDataset
 from ddsp_simplified.synthesize_from_midi_lib import get_midi_feature_names_augmented_with_pitch_and_velocity
 from feature_extraction import extract_features_from_frames, feature_extractor, \
     extract_features_from_audio_frames_using_heuristic_generator
-from feature_names import MIDI_FEATURE_PITCH
+from feature_names import MIDI_FEATURE_PITCH, MIDI_FEATURE_VELOCITY
 from utilities import frame_generator, load_track, get_raw_midi_features_from_file, generate_midi_features_examples, concat_dct
+from utils.dataset_compressor import DatasetCompressor
 
 MIDI_FILE_EXTENSION = 'MID'
 
@@ -51,7 +52,8 @@ def make_supervised_dataset(path, mfcc=False, batch_size=32, sample_rate=16000,
                             midi_feature_names: Optional[List[str]] = None,
                             empty_list_to_put_train_feature_frames: Optional[List] = None,
                             empty_list_to_put_val_feature_frames: Optional[List] = None,
-                            pitch_shifts: Tuple[int, ...] = (0, )
+                            pitch_shifts: Tuple[int, ...] = (0, ),
+                            silence_tail_seconds: float = 0.2,
                             ) -> Tuple[Dataset, Dataset, Optional[Dataset]]:
     """Loads all the mp3 and (optionally) midi files in the path, creates frames and extracts features."""
 
@@ -74,28 +76,41 @@ def make_supervised_dataset(path, mfcc=False, batch_size=32, sample_rate=16000,
                 normalize=normalize,
                 pitch_shift=pitch_shift
             )
-            generated_audio_frames = frame_generator(audio_data, int(length_of_example_seconds * sample_rate))
-            ordered_audio_frames.extend(generated_audio_frames)  # create 4 seconds long frames
 
-            if need_midi:
-                midi_file_name = guess_midi_file_name_by_audio_file_name(audio_file_name)
+            midi_file_name = guess_midi_file_name_by_audio_file_name(audio_file_name)
+            midi_feature_names_with_pitch_and_velocity = get_midi_feature_names_augmented_with_pitch_and_velocity(
+                midi_feature_names
+            )
 
-                midi_feature_names_with_pitch_and_velocity = get_midi_feature_names_augmented_with_pitch_and_velocity(midi_feature_names)
+            raw_midi_features_data_with_pitch_and_velocity = get_raw_midi_features_from_file(
+                path_to_midi_file=midi_file_name,
+                frame_rate=frame_rate,
+                audio_length_seconds=audio_data.shape[0] / sample_rate,
+                only_these_features=midi_feature_names_with_pitch_and_velocity
+            )
 
-                raw_midi_features_data_with_pitch_and_velocity = get_raw_midi_features_from_file(
-                    path_to_midi_file=midi_file_name,
-                    frame_rate=frame_rate,
-                    audio_length_seconds=audio_data.shape[0] / sample_rate,
-                    only_these_features=midi_feature_names_with_pitch_and_velocity
-                )
+            data_compressor = DatasetCompressor()
 
-                _apply_pitch_shift_to_midi_features(raw_midi_features_data_with_pitch_and_velocity, pitch_shift)
-
-                generated_midi_feature_examples = generate_midi_features_examples(
+            compressed_audio_data, compressed_raw_midi_features_data_with_pitch_and_velocity = \
+                data_compressor.compress_data(
+                    audio_data,
                     raw_midi_features_data_with_pitch_and_velocity,
-                    int(length_of_example_seconds * frame_rate)
+                    frame_rate=frame_rate,
+                    sample_rate=sample_rate,
+                    silence_tail_size_frames=int(silence_tail_seconds * frame_rate)
                 )
-                ordered_midi_features_frames.extend(generated_midi_feature_examples)
+
+            _apply_pitch_shift_to_midi_features(compressed_raw_midi_features_data_with_pitch_and_velocity, pitch_shift)
+
+            generated_midi_feature_examples = generate_midi_features_examples(
+                compressed_raw_midi_features_data_with_pitch_and_velocity,
+                int(length_of_example_seconds * frame_rate)
+            )
+
+            generated_audio_frames = frame_generator(compressed_audio_data, int(length_of_example_seconds * sample_rate))
+
+            ordered_midi_features_frames.extend(generated_midi_feature_examples)
+            ordered_audio_frames.extend(generated_audio_frames)
 
     combined_frames = []
     if need_midi:
