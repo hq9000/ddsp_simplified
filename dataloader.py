@@ -6,10 +6,10 @@ import numpy as np
 
 from tensorflow.data import Dataset
 import tensorflow_datasets as tfds
-from sklearn.model_selection import train_test_split
+from sklSearn.model_selection import train_test_split
 from tensorflow.python.ops.gen_dataset_ops import TensorSliceDataset
 
-from ddsp_simplified.synthesize_from_midi_lib import get_midi_feature_names_augmented_with_pitch_and_velocity
+from ddsp_simplified.synthesize_from_midi_lib import get_midi_feature_names_augmented_with_pitch_velocity_sequence_number
 from feature_extraction import extract_features_from_frames, feature_extractor, \
     extract_features_from_audio_frames_using_heuristic_generator
 from feature_names import MIDI_FEATURE_PITCH, MIDI_FEATURE_VELOCITY
@@ -46,6 +46,10 @@ def _apply_pitch_shift_to_midi_features(midi_features: Dict[str, np.ndarray], pi
     pitches[non_zero_indices] = pitches[non_zero_indices] + pitch_shift
 
 
+def _generate_loudness_contour(audio_data: np.ndarray, sample_rate: int, frame_rate: int) -> np.ndarray:
+    pass
+
+
 def make_supervised_dataset(path, mfcc=False, batch_size=32, sample_rate=16000,
                             normalize=False, conf_threshold=0.0, mfcc_nfft=1024,
                             frame_rate: int = 250,
@@ -77,8 +81,13 @@ def make_supervised_dataset(path, mfcc=False, batch_size=32, sample_rate=16000,
                 pitch_shift=pitch_shift
             )
 
+            loudness_contour = _generate_loudness_contour(
+                audio_data=audio_data,
+                sample_rate=sample_rate
+            )
+
             midi_file_name = guess_midi_file_name_by_audio_file_name(audio_file_name)
-            midi_feature_names_with_pitch_and_velocity = get_midi_feature_names_augmented_with_pitch_and_velocity(
+            midi_feature_names_with_pitch_and_velocity = get_midi_feature_names_augmented_with_pitch_velocity_sequence_number(
                 midi_feature_names
             )
 

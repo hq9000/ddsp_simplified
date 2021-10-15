@@ -5,7 +5,7 @@ import pretty_midi
 from pretty_midi import Instrument, ControlChange, Note
 
 from feature_names import MIDI_FEATURE_CC_PREFIX, MIDI_FEATURE_VELOCITY, MIDI_FEATURE_PITCH, \
-    MIDI_FEATURE_DISTANCE_FROM_ONSET, MIDI_FEATURE_DISTANCE_TO_OFFSET
+    MIDI_FEATURE_DISTANCE_FROM_ONSET, MIDI_FEATURE_DISTANCE_TO_OFFSET, MIDI_FEATURE_NOTE_SEQUENCE_NUMBER
 
 
 class MidiLoader:
@@ -77,6 +77,9 @@ class MidiLoader:
         def get_velocity(note: Note) -> np.float32:
             return np.float32(note.velocity)
 
+        def get_sequence_number(note: Note) -> np.float32:
+            return np.float32(note.start)
+
         res[MIDI_FEATURE_VELOCITY] = self._generate_single_value_data_for_notes(
             instrument=instrument,
             frame_rate=frame_rate,
@@ -88,6 +91,12 @@ class MidiLoader:
             frame_rate=frame_rate,
             audio_length_seconds=audio_length_seconds,
             get_single_feature_value_from_note_func=get_pitch)
+
+        res[MIDI_FEATURE_NOTE_SEQUENCE_NUMBER] = self._generate_single_value_data_for_notes(
+            instrument=instrument,
+            frame_rate=frame_rate,
+            audio_length_seconds=audio_length_seconds,
+            get_single_feature_value_from_note_func=get_sequence_number)
 
         res[MIDI_FEATURE_DISTANCE_FROM_ONSET] = self._generate_distance_data(
             instrument,
@@ -163,7 +172,7 @@ class MidiLoader:
     def _generate_single_value_data_for_notes(self, instrument: Instrument, frame_rate: int,
                                               audio_length_seconds: float,
                                               get_single_feature_value_from_note_func: Callable[
-                                                  [Note], np.float32]) -> np.ndarray:
+                                                  [Note, int], np.float32]) -> np.ndarray:
         """
         Get arbitrary note-bound single value feature data.
 
