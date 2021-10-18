@@ -6,7 +6,7 @@ import numpy as np
 
 from tensorflow.data import Dataset
 import tensorflow_datasets as tfds
-from sklSearn.model_selection import train_test_split
+from sklearn.model_selection import train_test_split
 from tensorflow.python.ops.gen_dataset_ops import TensorSliceDataset
 
 from ddsp_simplified.dsp_utils.spectral_ops import compute_loudness
@@ -51,14 +51,27 @@ def _generate_loudness_contour(audio_data: np.ndarray, sample_rate: int, frame_r
     return compute_loudness(audio=audio_data, sample_rate=sample_rate, frame_rate=frame_rate)
 
 
+def _generate_loudness_based_velocities(
+        note_sequence_numbers: np.ndarray,
+        audio_data: np.ndarray,
+        frame_rate: int,
+        sample_rate: int) -> np.ndarray:
 
-def _generate_loudness_based_velocities(note_sequence_numbers: np.ndarray, audio_data: np.ndarray) -> np.ndarray:
     loudness_contour = _generate_loudness_contour(
         audio_data=audio_data,
         sample_rate=sample_rate,
         frame_rate=frame_rate
     )
-    pass
+
+    # loudness is known to be behind the waveform by approximately this
+    # many frames. What we need is to make loudness picks fall into the midi
+    # note region, to be on the safe side, we shift it slightly.
+    loudness_shift_frames = 25
+
+    shifted_loudness_contour = np.concatenate(
+        (np.zeros(loudness_shift_frames), loudness_contour[:-loudness_shift_frames]), axis=0)
+
+    return shifted_loudness_contour
 
 
 def make_supervised_dataset(path, mfcc=False, batch_size=32, sample_rate=16000,
@@ -105,10 +118,12 @@ def make_supervised_dataset(path, mfcc=False, batch_size=32, sample_rate=16000,
                 only_these_features=midi_feature_names_with_pitch_and_velocity_and_seq_number
             )
 
-            if correct_velocities_using_loudness:
+            if True:
                 corrected_velocities = _generate_loudness_based_velocities(
-                    raw_midi_features_data_with_pitch_and_velocity[MIDI_FEATURE_NOTE_SEQUENCE_NUMBER],
-                    audio_data
+                    note_sequence_numbers=raw_midi_features_data_with_pitch_and_velocity[MIDI_FEATURE_NOTE_SEQUENCE_NUMBER],
+                    audio_data=audio_data,
+                    frame_rate=frame_rate,
+                    sample_rate=sample_rate
                 )
 
                 raw_midi_features_data_with_pitch_and_velocity[MIDI_FEATURE_VELOCITY] = corrected_velocities
