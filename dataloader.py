@@ -9,10 +9,11 @@ import tensorflow_datasets as tfds
 from sklSearn.model_selection import train_test_split
 from tensorflow.python.ops.gen_dataset_ops import TensorSliceDataset
 
+from ddsp_simplified.dsp_utils.spectral_ops import compute_loudness
 from ddsp_simplified.synthesize_from_midi_lib import get_midi_feature_names_augmented_with_pitch_velocity_sequence_number
 from feature_extraction import extract_features_from_frames, feature_extractor, \
     extract_features_from_audio_frames_using_heuristic_generator
-from feature_names import MIDI_FEATURE_PITCH, MIDI_FEATURE_VELOCITY
+from feature_names import MIDI_FEATURE_PITCH, MIDI_FEATURE_VELOCITY, MIDI_FEATURE_NOTE_SEQUENCE_NUMBER
 from utilities import frame_generator, load_track, get_raw_midi_features_from_file, generate_midi_features_examples, concat_dct
 from utils.dataset_compressor import DatasetCompressor
 
@@ -47,6 +48,16 @@ def _apply_pitch_shift_to_midi_features(midi_features: Dict[str, np.ndarray], pi
 
 
 def _generate_loudness_contour(audio_data: np.ndarray, sample_rate: int, frame_rate: int) -> np.ndarray:
+    return compute_loudness(audio=audio_data, sample_rate=sample_rate, frame_rate=frame_rate)
+
+
+
+def _generate_loudness_based_velocities(note_sequence_numbers: np.ndarray, audio_data: np.ndarray) -> np.ndarray:
+    loudness_contour = _generate_loudness_contour(
+        audio_data=audio_data,
+        sample_rate=sample_rate,
+        frame_rate=frame_rate
+    )
     pass
 
 
@@ -58,6 +69,7 @@ def make_supervised_dataset(path, mfcc=False, batch_size=32, sample_rate=16000,
                             empty_list_to_put_val_feature_frames: Optional[List] = None,
                             pitch_shifts: Tuple[int, ...] = (0, ),
                             silence_tail_seconds: float = 0.2,
+                            correct_velocities_using_loudness: bool = False
                             ) -> Tuple[Dataset, Dataset, Optional[Dataset]]:
     """Loads all the mp3 and (optionally) midi files in the path, creates frames and extracts features."""
 
@@ -81,13 +93,8 @@ def make_supervised_dataset(path, mfcc=False, batch_size=32, sample_rate=16000,
                 pitch_shift=pitch_shift
             )
 
-            loudness_contour = _generate_loudness_contour(
-                audio_data=audio_data,
-                sample_rate=sample_rate
-            )
-
             midi_file_name = guess_midi_file_name_by_audio_file_name(audio_file_name)
-            midi_feature_names_with_pitch_and_velocity = get_midi_feature_names_augmented_with_pitch_velocity_sequence_number(
+            midi_feature_names_with_pitch_and_velocity_and_seq_number = get_midi_feature_names_augmented_with_pitch_velocity_sequence_number(
                 midi_feature_names
             )
 
@@ -95,8 +102,16 @@ def make_supervised_dataset(path, mfcc=False, batch_size=32, sample_rate=16000,
                 path_to_midi_file=midi_file_name,
                 frame_rate=frame_rate,
                 audio_length_seconds=audio_data.shape[0] / sample_rate,
-                only_these_features=midi_feature_names_with_pitch_and_velocity
+                only_these_features=midi_feature_names_with_pitch_and_velocity_and_seq_number
             )
+
+            if correct_velocities_using_loudness:
+                corrected_velocities = _generate_loudness_based_velocities(
+                    raw_midi_features_data_with_pitch_and_velocity[MIDI_FEATURE_NOTE_SEQUENCE_NUMBER],
+                    audio_data
+                )
+
+                raw_midi_features_data_with_pitch_and_velocity[MIDI_FEATURE_VELOCITY] = corrected_velocities
 
             data_compressor = DatasetCompressor()
 
@@ -160,6 +175,7 @@ def make_supervised_dataset(path, mfcc=False, batch_size=32, sample_rate=16000,
             audio_frames=val_shuffled_audio_frames,
             midi_frames=valX
         )
+
     if need_midi:
         train_shuffled_midi_frames = [x[KEY_MIDI] for x in trainX]
         val_shuffled_midi_frames = [x[KEY_MIDI] for x in valX]
