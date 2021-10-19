@@ -57,6 +57,31 @@ def _generate_loudness_based_velocities(
         frame_rate: int,
         sample_rate: int) -> np.ndarray:
 
+    loudness_contour = _generate_loudness_contour(audio_data, audio_file_name, frame_rate, pitch_shift, sample_rate)
+
+    note_peak_loudness_map = _generate_note_peak_loudness_map(note_sequence_numbers, loudness_contour)
+
+    peak_loudnesses = np.ndarray(note_peak_loudness_map.values())
+
+    peak_loudness_std = np.std(peak_loudnesses)
+    peak_loudness_mean = np.mean(peak_loudnesses)
+
+    res = np.zeros(shape=note_sequence_numbers.shape)
+
+    reference_dataset_velocity_std = 19.044096499689005
+    reference_dataset_velocity_mean = 65.02882818182805
+
+    for i, note_sequence_number in enumerate(note_sequence_numbers):
+        note_peak_loudness = note_peak_loudness_map[note_sequence_number]
+        velocity = (note_peak_loudness - peak_loudness_mean) / peak_loudness_std * reference_dataset_velocity_std + reference_dataset_velocity_mean
+        res[i] = velocity
+
+    return res
+
+def _generate_note_peak_loudness_map(note_sequence_numbers: np.ndarray, loudness_contour: np.ndarray) -> Dict[float, float]:
+    pass
+
+def _generate_loudness_contour(audio_data: np.ndarray, audio_file_name: str, frame_rate: int, pitch_shift: int, sample_rate: int) -> np.ndarray:
     cache = Cache.get_instance()
     cache_key = '-'.join([
         md5(audio_file_name.encode('utf-8')).hexdigest(),
@@ -65,21 +90,16 @@ def _generate_loudness_based_velocities(
         'fr=' + str(frame_rate),
         'loudness_contour'
     ])
-
     if not cache.has_numpy_array(cache_key):
         loudness_contour = compute_loudness(audio=audio_data, sample_rate=sample_rate, frame_rate=frame_rate)
         cache.put_numpy_array(cache_key, loudness_contour)
-
     loudness_contour = cache.get_numpy_array(cache_key)
-
     # loudness is known to be behind the waveform by approximately this
     # many frames. What we need is to make loudness picks fall into the midi
     # note region, to be on the safe side, we shift it slightly.
     loudness_shift_frames = 25
-
     shifted_loudness_contour = np.concatenate(
         (np.zeros(loudness_shift_frames), loudness_contour[:-loudness_shift_frames]), axis=0)
-
     return shifted_loudness_contour
 
 
