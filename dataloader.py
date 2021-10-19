@@ -1,5 +1,6 @@
 import glob
 import os.path
+from hashlib import md5
 from typing import Dict, Optional, List, Tuple
 
 import numpy as np
@@ -15,6 +16,7 @@ from feature_extraction import extract_features_from_frames, feature_extractor, 
     extract_features_from_audio_frames_using_heuristic_generator
 from feature_names import MIDI_FEATURE_PITCH, MIDI_FEATURE_VELOCITY, MIDI_FEATURE_NOTE_SEQUENCE_NUMBER
 from utilities import frame_generator, load_track, get_raw_midi_features_from_file, generate_midi_features_examples, concat_dct
+from utils.cache import Cache
 from utils.dataset_compressor import DatasetCompressor
 
 MIDI_FILE_EXTENSION = 'MID'
@@ -47,21 +49,28 @@ def _apply_pitch_shift_to_midi_features(midi_features: Dict[str, np.ndarray], pi
     pitches[non_zero_indices] = pitches[non_zero_indices] + pitch_shift
 
 
-def _generate_loudness_contour(audio_data: np.ndarray, sample_rate: int, frame_rate: int) -> np.ndarray:
-    return compute_loudness(audio=audio_data, sample_rate=sample_rate, frame_rate=frame_rate)
-
-
 def _generate_loudness_based_velocities(
+        audio_file_name: str,
+        pitch_shift: int,
         note_sequence_numbers: np.ndarray,
         audio_data: np.ndarray,
         frame_rate: int,
         sample_rate: int) -> np.ndarray:
 
-    loudness_contour = _generate_loudness_contour(
-        audio_data=audio_data,
-        sample_rate=sample_rate,
-        frame_rate=frame_rate
-    )
+    cache = Cache.get_instance()
+    cache_key = '-'.join([
+        md5(audio_file_name.encode('utf-8')).hexdigest(),
+        'pitch_shift=' + str(pitch_shift),
+        'sr=' + str(sample_rate),
+        'fr=' + str(frame_rate),
+        'loudness_contour'
+    ])
+
+    if not cache.has_numpy_array(cache_key):
+        loudness_contour = compute_loudness(audio=audio_data, sample_rate=sample_rate, frame_rate=frame_rate)
+        cache.put_numpy_array(cache_key, loudness_contour)
+
+    loudness_contour = cache.get_numpy_array(cache_key)
 
     # loudness is known to be behind the waveform by approximately this
     # many frames. What we need is to make loudness picks fall into the midi
@@ -120,6 +129,8 @@ def make_supervised_dataset(path, mfcc=False, batch_size=32, sample_rate=16000,
 
             if True:
                 corrected_velocities = _generate_loudness_based_velocities(
+                    audio_file_name=audio_file_name,
+                    pitch_shift=pitch_shift,
                     note_sequence_numbers=raw_midi_features_data_with_pitch_and_velocity[MIDI_FEATURE_NOTE_SEQUENCE_NUMBER],
                     audio_data=audio_data,
                     frame_rate=frame_rate,
