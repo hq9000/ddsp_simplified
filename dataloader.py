@@ -61,7 +61,7 @@ def _generate_loudness_based_velocities(
 
     note_peak_loudness_map = _generate_note_peak_loudness_map(note_sequence_numbers, loudness_contour)
 
-    peak_loudnesses = np.ndarray(note_peak_loudness_map.values())
+    peak_loudnesses = np.array(list(note_peak_loudness_map.values()))
 
     peak_loudness_std = np.std(peak_loudnesses)
     peak_loudness_mean = np.mean(peak_loudnesses)
@@ -72,14 +72,35 @@ def _generate_loudness_based_velocities(
     reference_dataset_velocity_mean = 65.02882818182805
 
     for i, note_sequence_number in enumerate(note_sequence_numbers):
+        if note_sequence_number == 0.0:
+            continue
+
+        assert note_sequence_number in note_peak_loudness_map
+
         note_peak_loudness = note_peak_loudness_map[note_sequence_number]
-        velocity = (note_peak_loudness - peak_loudness_mean) / peak_loudness_std * reference_dataset_velocity_std + reference_dataset_velocity_mean
+        velocity = ((note_peak_loudness - peak_loudness_mean) / peak_loudness_std
+                    * reference_dataset_velocity_std + reference_dataset_velocity_mean)
         res[i] = velocity
 
+    assert res.shape == note_sequence_numbers.shape, "shape mismatch"
     return res
 
-def _generate_note_peak_loudness_map(note_sequence_numbers: np.ndarray, loudness_contour: np.ndarray) -> Dict[float, float]:
-    pass
+
+def _generate_note_peak_loudness_map(
+        note_sequence_numbers: np.ndarray,
+        loudness_contour: np.ndarray) -> Dict[float, float]:
+    assert note_sequence_numbers.shape == loudness_contour.shape, 'shape mismatch'
+
+    seq_to_ld_map = {}
+    for i, note_sequence_number in enumerate(note_sequence_numbers):
+        if note_sequence_number == 0.0:
+            continue
+        if note_sequence_number not in seq_to_ld_map:
+            seq_to_ld_map[note_sequence_number] = loudness_contour[i]
+        else:
+            seq_to_ld_map[note_sequence_number] = max(seq_to_ld_map[note_sequence_number], loudness_contour[i])
+
+    return seq_to_ld_map
 
 def _generate_loudness_contour(audio_data: np.ndarray, audio_file_name: str, frame_rate: int, pitch_shift: int, sample_rate: int) -> np.ndarray:
     cache = Cache.get_instance()
@@ -99,7 +120,7 @@ def _generate_loudness_contour(audio_data: np.ndarray, audio_file_name: str, fra
     # note region, to be on the safe side, we shift it slightly.
     loudness_shift_frames = 25
     shifted_loudness_contour = np.concatenate(
-        (np.zeros(loudness_shift_frames), loudness_contour[:-loudness_shift_frames]), axis=0)
+        (np.full(shape=(loudness_shift_frames, ), fill_value=loudness_contour[0], dtype=np.float32), loudness_contour[:-loudness_shift_frames]), axis=0)
     return shifted_loudness_contour
 
 
