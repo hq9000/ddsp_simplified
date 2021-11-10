@@ -1,6 +1,6 @@
 # Neural Midi Synthesizer
 
-The code for the reserch work on using simplified DDSP approach for style-aware modeling of the sound of real instruments.
+The code for the research work on using simplified DDSP approach for style-aware modeling of the sound of real instruments.
 
 See the ["Building style-aware neural MIDI synthesizers using simplified differentiable DSP approach"](http://todo.com) paper for more details.
 
