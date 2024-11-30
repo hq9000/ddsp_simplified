@@ -13,5 +13,6 @@ MIDI_FEATURE_PITCH = 'pitch'
 MIDI_FEATURE_DISTANCE_FROM_ONSET = 'distance_from_onset'
 MIDI_FEATURE_DISTANCE_TO_OFFSET = 'distance_to_offset'
 MIDI_FEATURE_CC_PREFIX = 'cc_'
+MIDI_FEATURE_NOTE_SEQUENCE_NUMBER = 'sequence_number'
 
 

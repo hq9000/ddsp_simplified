@@ -1,5 +1,6 @@
 import glob
 import os.path
+from hashlib import md5
 from typing import Dict, Optional, List, Tuple
 
 import numpy as np
@@ -9,11 +10,13 @@ import tensorflow_datasets as tfds
 from sklearn.model_selection import train_test_split
 from tensorflow.python.ops.gen_dataset_ops import TensorSliceDataset
 
-from ddsp_simplified.synthesize_from_midi_lib import get_midi_feature_names_augmented_with_pitch_and_velocity
+from ddsp_simplified.dsp_utils.spectral_ops import compute_loudness
+from ddsp_simplified.synthesize_from_midi_lib import get_midi_feature_names_augmented_with_pitch_velocity_sequence_number
 from feature_extraction import extract_features_from_frames, feature_extractor, \
     extract_features_from_audio_frames_using_heuristic_generator
-from feature_names import MIDI_FEATURE_PITCH, MIDI_FEATURE_VELOCITY
+from feature_names import MIDI_FEATURE_PITCH, MIDI_FEATURE_VELOCITY, MIDI_FEATURE_NOTE_SEQUENCE_NUMBER
 from utilities import frame_generator, load_track, get_raw_midi_features_from_file, generate_midi_features_examples, concat_dct
+from utils.cache import Cache
 from utils.dataset_compressor import DatasetCompressor
 
 MIDI_FILE_EXTENSION = 'MID'
@@ -46,6 +49,81 @@ def _apply_pitch_shift_to_midi_features(midi_features: Dict[str, np.ndarray], pi
     pitches[non_zero_indices] = pitches[non_zero_indices] + pitch_shift
 
 
+def _generate_loudness_based_velocities(
+        audio_file_name: str,
+        pitch_shift: int,
+        note_sequence_numbers: np.ndarray,
+        audio_data: np.ndarray,
+        frame_rate: int,
+        sample_rate: int) -> np.ndarray:
+
+    loudness_contour = _generate_loudness_contour(audio_data, audio_file_name, frame_rate, pitch_shift, sample_rate)
+
+    note_peak_loudness_map = _generate_note_peak_loudness_map(note_sequence_numbers, loudness_contour)
+
+    peak_loudnesses = np.array(list(note_peak_loudness_map.values()))
+
+    peak_loudness_std = np.std(peak_loudnesses)
+    peak_loudness_mean = np.mean(peak_loudnesses)
+
+    res = np.zeros(shape=note_sequence_numbers.shape)
+
+    reference_dataset_velocity_std = 19.044096499689005
+    reference_dataset_velocity_mean = 65.02882818182805
+
+    for i, note_sequence_number in enumerate(note_sequence_numbers):
+        if note_sequence_number == 0.0:
+            continue
+
+        assert note_sequence_number in note_peak_loudness_map
+
+        note_peak_loudness = note_peak_loudness_map[note_sequence_number]
+        velocity = ((note_peak_loudness - peak_loudness_mean) / peak_loudness_std
+                    * reference_dataset_velocity_std + reference_dataset_velocity_mean)
+        res[i] = velocity
+
+    assert res.shape == note_sequence_numbers.shape, "shape mismatch"
+    return res
+
+
+def _generate_note_peak_loudness_map(
+        note_sequence_numbers: np.ndarray,
+        loudness_contour: np.ndarray) -> Dict[float, float]:
+    assert note_sequence_numbers.shape == loudness_contour.shape, 'shape mismatch'
+
+    seq_to_ld_map = {}
+    for i, note_sequence_number in enumerate(note_sequence_numbers):
+        if note_sequence_number == 0.0:
+            continue
+        if note_sequence_number not in seq_to_ld_map:
+            seq_to_ld_map[note_sequence_number] = loudness_contour[i]
+        else:
+            seq_to_ld_map[note_sequence_number] = max(seq_to_ld_map[note_sequence_number], loudness_contour[i])
+
+    return seq_to_ld_map
+
+def _generate_loudness_contour(audio_data: np.ndarray, audio_file_name: str, frame_rate: int, pitch_shift: int, sample_rate: int) -> np.ndarray:
+    cache = Cache.get_instance()
+    cache_key = '-'.join([
+        md5(audio_file_name.encode('utf-8')).hexdigest(),
+        'pitch_shift=' + str(pitch_shift),
+        'sr=' + str(sample_rate),
+        'fr=' + str(frame_rate),
+        'loudness_contour'
+    ])
+    if not cache.has_numpy_array(cache_key):
+        loudness_contour = compute_loudness(audio=audio_data, sample_rate=sample_rate, frame_rate=frame_rate)
+        cache.put_numpy_array(cache_key, loudness_contour)
+    loudness_contour = cache.get_numpy_array(cache_key)
+    # loudness is known to be behind the waveform by approximately this
+    # many frames. What we need is to make loudness picks fall into the midi
+    # note region, to be on the safe side, we shift it slightly.
+    loudness_shift_frames = 25
+    shifted_loudness_contour = np.concatenate(
+        (np.full(shape=(loudness_shift_frames, ), fill_value=loudness_contour[0], dtype=np.float32), loudness_contour[:-loudness_shift_frames]), axis=0)
+    return shifted_loudness_contour
+
+
 def make_supervised_dataset(path, mfcc=False, batch_size=32, sample_rate=16000,
                             normalize=False, conf_threshold=0.0, mfcc_nfft=1024,
                             frame_rate: int = 250,
@@ -54,6 +132,7 @@ def make_supervised_dataset(path, mfcc=False, batch_size=32, sample_rate=16000,
                             empty_list_to_put_val_feature_frames: Optional[List] = None,
                             pitch_shifts: Tuple[int, ...] = (0, ),
                             silence_tail_seconds: float = 0.2,
+                            correct_velocities_using_loudness: bool = False
                             ) -> Tuple[Dataset, Dataset, Optional[Dataset]]:
     """Loads all the mp3 and (optionally) midi files in the path, creates frames and extracts features."""
 
@@ -78,7 +157,7 @@ def make_supervised_dataset(path, mfcc=False, batch_size=32, sample_rate=16000,
             )
 
             midi_file_name = guess_midi_file_name_by_audio_file_name(audio_file_name)
-            midi_feature_names_with_pitch_and_velocity = get_midi_feature_names_augmented_with_pitch_and_velocity(
+            midi_feature_names_with_pitch_and_velocity_and_seq_number = get_midi_feature_names_augmented_with_pitch_velocity_sequence_number(
                 midi_feature_names
             )
 
@@ -86,8 +165,20 @@ def make_supervised_dataset(path, mfcc=False, batch_size=32, sample_rate=16000,
                 path_to_midi_file=midi_file_name,
                 frame_rate=frame_rate,
                 audio_length_seconds=audio_data.shape[0] / sample_rate,
-                only_these_features=midi_feature_names_with_pitch_and_velocity
+                only_these_features=midi_feature_names_with_pitch_and_velocity_and_seq_number
             )
+
+            if True:
+                corrected_velocities = _generate_loudness_based_velocities(
+                    audio_file_name=audio_file_name,
+                    pitch_shift=pitch_shift,
+                    note_sequence_numbers=raw_midi_features_data_with_pitch_and_velocity[MIDI_FEATURE_NOTE_SEQUENCE_NUMBER],
+                    audio_data=audio_data,
+                    frame_rate=frame_rate,
+                    sample_rate=sample_rate
+                )
+
+                raw_midi_features_data_with_pitch_and_velocity[MIDI_FEATURE_VELOCITY] = corrected_velocities
 
             data_compressor = DatasetCompressor()
 
@@ -151,6 +242,7 @@ def make_supervised_dataset(path, mfcc=False, batch_size=32, sample_rate=16000,
             audio_frames=val_shuffled_audio_frames,
             midi_frames=valX
         )
+
     if need_midi:
         train_shuffled_midi_frames = [x[KEY_MIDI] for x in trainX]
         val_shuffled_midi_frames = [x[KEY_MIDI] for x in valX]
